@@ -1946,7 +1946,7 @@ public class ClickGuiScreen extends Screen {
         // Footer chips.
         int fy = footerTop() + 5;
         if (inRect(mx, my, footerChipX("THEMES"), fy, footerChipW("THEMES"), 16)) {
-            selectCategory(Category.MISC); selectModule(UtilityClient.moduleManager.getByName("Appearance")); return true;
+            net.minecraft.client.Minecraft.getInstance().gui.setScreen(new ThemesScreen(this)); return true;
         }
         if (inRect(mx, my, footerChipX("MODULES"), fy, footerChipW("MODULES"), 16)) {
             net.minecraft.client.Minecraft.getInstance().gui.setScreen(new CustomModulesScreen(this));

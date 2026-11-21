@@ -78,7 +78,11 @@ Redstone extends supported potions; glowstone strengthens supported potions. A p
 
 **Baritone is a separate Fabric mod**, not a client module toggle. Startup installation places its side-load JAR in the selected profile. Late injection stages it in that profile's mods folder for the next restart. Restart Minecraft once, then use `#help`. An existing standalone Baritone copy is preserved. SeedCrackerX is similarly accessed through its commands and has no module-list entry.
 
-**Themes** is the bottom-right menu button. Appearance is hidden from Misc/module lists. Choose a panel style and palette, or edit Custom colors; changes apply immediately and are saved with settings.
+**Themes** is the bottom-right menu button. Appearance is hidden from Misc/module lists. The editor has sixteen presets (Graphite, Midnight, Rose, Forest, Light, Ocean, Sunset, Amethyst, Nord, Cyberpunk, Cherry, Sandstone, Ice, Monochrome, Solarized and Coffee), four panel styles and a live preview.
+
+Edit Background, Panel, Accent, Text, Muted Text and Border using `#RRGGBB` values. Opacity, Corner Radius, Border Width and Hover Strength are adjustable. Click a field and type/paste its value, then press Enter; scroll the left column for more controls. Add a theme name and optional author. **Apply** changes your current appearance and saves it in client settings. **Save** keeps a JSON copy in the local theme library; click saved themes to preview them before applying.
+
+To share, click **Copy Code** and paste the `UCTHEME1:` string into a Discord message. Recipients copy it, open Themes, click **Import**, review the preview, then Apply or Save. Import also accepts raw theme JSON or a copied local JSON file path. **Folder** opens the theme directory, where you can share JSON files as attachments or add downloaded files; reopen the Themes panel to refresh its list. Themes contain only appearance data, not module settings or friends. See [the theme format and sharing guide](THEMES.md).
 
 **AutoInstacart** starts after a bow release that fires an arrow; it does not require a full draw. Its default four-tick `shotDelay` lets you look down before it chooses the placement block. The crosshair must reach a suitable support/rail and the required items must be in the hotbar. AutoInstacart and FastCart do not steer your camera.
 
@@ -91,5 +95,7 @@ Health/Armor Indicators each have a **Players Only** option; disable it to inclu
 On Windows, client settings and program files are under `%APPDATA%\depends`. Custom JARs are under `%APPDATA%\depends\utilityclient\modules`; its `SDK` subfolder and `load-report.txt` explain imports. The private runtime and retained setup/update cache are under `%LOCALAPPDATA%\UtilityClient`. Linux uses `$XDG_CONFIG_HOME/depends`, usually `~/.config/depends`.
 
 If a module does not appear, read the Modules panel's Load Report. If Baritone is missing, check the correct Fabric profile's mods folder and restart. If a changed client still behaves like the old build, check `version`, fully close Minecraft, update through setup, and reopen the correct profile. Installation Health and Repair can restore damaged program files while preserving settings. Uninstall preserves settings by default; remove them only through its explicit settings-removal option.
+
+For community release announcements and interactive bot planning, see [Discord: webhook or custom bot](COMMUNITY-DISCORD.md).
 
 The project license is [CC0](LICENSE). Bundled Baritone has its own [license and source notices](vendor/README.md).

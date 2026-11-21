@@ -177,5 +177,9 @@ tasks.register('regressionCheck', JavaExec) {
     dependsOn tasks.named('regressionClasses')
     classpath = sourceSets.regression.runtimeClasspath
     mainClass = 'com.baggute.cheatclient.InteractionMathChecks'
+    def profile = layout.buildDirectory.dir('regression-profile').get().asFile
+    environment 'APPDATA', new File(profile,'appdata').absolutePath
+    environment 'XDG_CONFIG_HOME', new File(profile,'xdg').absolutePath
+    if(project.hasProperty('themePreviews'))systemProperty 'uc.themePreviewDir',layout.buildDirectory.dir('theme-previews').get().asFile.absolutePath
 }
 tasks.named('check') { dependsOn tasks.named('regressionCheck') }

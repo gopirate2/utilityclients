@@ -74,7 +74,7 @@ final class UiRenderer {
         ACCENT_TEXT = ThemePalette.blend(ACCENT, TEXT, .25f);
         ACCENT_WASH = 0x1F000000 | (ACCENT & 0xFFFFFF); ACCENT_EDGE = 0x55000000 | (ACCENT & 0xFFFFFF);
         TEXT_DIM = p.dim(); TEXT_MUTED = ThemePalette.blend(PANEL, TEXT, .46f); TEXT_GHOST = ThemePalette.blend(PANEL, TEXT, .33f);
-        HOVER = ThemePalette.blend(PANEL, ACCENT, .10f); TRACK = ThemePalette.blend(PANEL, TEXT, .12f); SWATCH = BORDER;
+        HOVER = ThemePalette.blend(PANEL, ACCENT, (float)p.hover()); TRACK = ThemePalette.blend(PANEL, TEXT, .12f); SWATCH = BORDER;
         Ui.applyTheme(p);
     }
 
@@ -85,9 +85,9 @@ final class UiRenderer {
         ThemePalette.Palette theme = activeTheme;
         boolean surface = w > 20 && h > 12 && (argb == GRAPHITE || argb == PANEL || argb == STRIP || argb == RECESS || argb == INPUT);
         if (surface && theme.style().equals("Outlined")) argb = GRAPHITE;
-        if (surface && theme.style().equals("Glass")) argb = 0xC0000000 | (argb & 0xFFFFFF);
+        if (surface) argb = ((int)Math.round(255*theme.opacity()*(theme.style().equals("Glass")?.75:1))<<24) | (argb & 0xFFFFFF);
         if (surface && (theme.style().equals("Rounded") || theme.style().equals("Glass")))
-            Ui.roundedFill(g, x, y, w, h, 6, argb);
+            Ui.roundedFill(g, x, y, w, h, theme.radius(), argb);
         else g.fill(x, y, x + w, y + h, argb);
     }
 
@@ -96,7 +96,7 @@ final class UiRenderer {
         if (w <= 0 || h <= 0) return;
         if (w > 40 && h > 14 && activeTheme.style().equals("Outlined") && argb == BORDER) argb = ACCENT;
         if (w > 40 && h > 14 && (activeTheme.style().equals("Rounded") || activeTheme.style().equals("Glass"))) {
-            int r = Math.min(6, Math.min(w, h) / 2);
+            int r = Math.min(activeTheme.radius(), Math.min(w, h) / 2);
             fill(g, x + r, y, w - 2*r, 1, argb); fill(g, x + r, y + h - 1, w - 2*r, 1, argb);
             fill(g, x, y + r, 1, h - 2*r, argb); fill(g, x + w - 1, y + r, 1, h - 2*r, argb);
             for (int row = 0; row < r; row++) {
@@ -115,8 +115,9 @@ final class UiRenderer {
 
     /** Border + body in one call: the standard panel. */
     static void panel(GuiGraphicsExtractor g, int x, int y, int w, int h, int body) {
-        fill(g, x, y, w, h, BORDER);
-        fill(g, x + 1, y + 1, w - 2, h - 2, body);
+        int border=Math.min(activeTheme.borderWidth(),Math.min(w,h)/2);
+        fill(g, x + border, y + border, w - 2*border, h - 2*border, body);
+        for(int layer=0;layer<border;layer++)outline(g,x+layer,y+layer,w-2*layer,h-2*layer,BORDER);
     }
 
     static void hLine(GuiGraphicsExtractor g, int x, int y, int w, int argb) {

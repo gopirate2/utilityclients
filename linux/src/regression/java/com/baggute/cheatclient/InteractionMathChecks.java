@@ -38,6 +38,7 @@ public final class InteractionMathChecks {
         ProfileComparisonChecks.run();
         ContainerDragChecks.run();
         ExtensionsThemeChecks.run();
+        ThemeShareChecks.run();
     }
     private static void require(boolean condition, String message) {
         if (!condition) throw new AssertionError(message);

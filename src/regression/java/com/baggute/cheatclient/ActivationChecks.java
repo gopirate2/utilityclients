@@ -38,6 +38,7 @@ import net.minecraft.world.phys.*;
 import org.joml.Matrix3x2fStack;
 import org.lwjgl.glfw.GLFW;
 import sun.misc.Unsafe;
+import net.minecraft.client.input.MouseButtonEvent;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.function.Predicate;
@@ -69,7 +70,7 @@ public final class ActivationChecks {
         try {
             setup(); catalog(); bindingFailures(); sharedTick(); crossbow(); bucketRepairs(); lunge(); pearlSpeed(false, 0); pearlSpeed(true, 0); pearlSpeed(false, 4);
             manualPearlSpeed(false, true); manualPearlSpeed(true, false); rejectedPearls(); atomicItemUse();
-            timingAndPriority(); quietFeedback(); missControls(); livePearls(); apexSequences(); delegates(); combatRepairs(); requestedRepairs(); hud(); panic();
+            timingAndPriority(); quietFeedback(); missControls(); livePearls(); apexSequences(); delegates(); combatRepairs(); requestedRepairs(); themeEditor(); hud(); panic();
             System.out.println("PASS: action press/repeat/release, failure isolation, duplicate bindings, shared tick, AutoXbow arming/charging, Lunge III stab/return, fast pearl packet aim, own/foreign pearl tracking, offhand timing, Apex sequence/delegate cleanup and HUD preview");
         } finally {
             field(Minecraft.class, "instance").set(null, oldGame);
@@ -680,6 +681,31 @@ public final class ActivationChecks {
         System.out.println("PASS: separate Baritone, hidden command/theme entries, numeric potion levels, brewing recipes, exact drop quantities, forced creative kits, delayed partial-draw carts, neutral flight and elytra-only wind-charge view restoration");
     }
 
+    private static void themeEditor() throws Exception {
+        setup();ModuleManager manager=new ModuleManager();UtilityClient.moduleManager=manager;manager.init();
+        var appearance=(com.baggute.cheatclient.module.misc.Appearance)manager.getByName("Appearance");
+        for(int[] size:new int[][]{{720,400},{420,270}})for(String palette:List.of("Midnight","Light")) {
+            appearance.palette.set(palette);var screen=new com.baggute.cheatclient.gui.ThemesScreen(null);
+            field(Screen.class,"width").setInt(screen,size[0]);field(Screen.class,"height").setInt(screen,size[1]);field(Screen.class,"font").set(screen,allocate(FontShim.class));
+            Graphics graphics=allocate(Graphics.class);graphics.matrix=new Matrix3x2fStack(32);graphics.lines=new ArrayList<>();
+            if(System.getProperty("uc.themePreviewDir")!=null)graphics.image=new java.awt.image.BufferedImage(size[0],size[1],java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            screen.extractRenderState(graphics,0,0,0);
+            require(graphics.lines.contains("APPLY")&&graphics.lines.contains("COPY CODE"),"theme actions render at "+size[0]+" / "+palette);
+            if(graphics.image!=null){var output=java.nio.file.Path.of(System.getProperty("uc.themePreviewDir"));java.nio.file.Files.createDirectories(output);javax.imageio.ImageIO.write(graphics.image,"png",output.resolve(palette+"-"+size[0]+".png").toFile());}
+            int left=Math.max(12,(size[0]-760)/2);
+            screen.mouseClicked(new MouseButtonEvent(left+8,53,new net.minecraft.client.input.MouseButtonInfo(0,0)),false);
+            var draft=(com.baggute.cheatclient.gui.ThemeStore.Theme)field(screen.getClass(),"draft").get(screen);
+            require(!draft.name().equals("My Theme")&&appearance.palette.get().equals(palette),"preset preview does not change active theme");
+            if(size[0]==720){
+                screen.mouseClicked(new MouseButtonEvent(left+8,121,new net.minecraft.client.input.MouseButtonInfo(0,0)),false);
+                field(screen.getClass(),"input").set(screen,"#123456");screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER,0,0));
+                draft=(com.baggute.cheatclient.gui.ThemeStore.Theme)field(screen.getClass(),"draft").get(screen);
+                require(draft.palette().background()==0xFF123456,"hex edit updates the draft after Enter");
+            }
+        }
+        System.out.println("PASS: theme editor dark/light rendering, small/large layouts, visible sharing controls and draft-only preset/hex edits");
+    }
+
     private static void hud() throws Exception {
         setup(); ModuleManager manager = new ModuleManager(); UtilityClient.moduleManager = manager;
         Hud hud = new Hud(); manager.getModules().add(hud);
@@ -845,12 +871,13 @@ public final class ActivationChecks {
     private static final class FontShim extends Font {
         private FontShim() { super(null); }
         @Override public int width(String text) { return text.length() * 6; }
+        @Override public String plainSubstrByWidth(String text,int width){return text.substring(0,Math.max(0,Math.min(text.length(),width/6)));}
     }
     private static final class Graphics extends GuiGraphicsExtractor {
-        Matrix3x2fStack matrix; List<String> lines;
+        Matrix3x2fStack matrix; List<String> lines;java.awt.image.BufferedImage image;
         private Graphics() { super(null, null, 400, 300); }
         @Override public Matrix3x2fStack pose() { return matrix; }
-        @Override public void text(Font font, String text, int x, int y, int color, boolean shadow) { lines.add(text); }
-        @Override public void fill(int x1, int y1, int x2, int y2, int color) {}
+        @Override public void text(Font font, String text, int x, int y, int color, boolean shadow) { lines.add(text);if(image!=null){var g=image.createGraphics();try{g.setFont(new java.awt.Font("Monospaced",java.awt.Font.PLAIN,10));g.setColor(new java.awt.Color(color,true));g.drawString(text,x,y+8);}finally{g.dispose();}} }
+        @Override public void fill(int x1, int y1, int x2, int y2, int color) {if(image!=null){var g=image.createGraphics();try{g.setColor(new java.awt.Color(color,true));g.fillRect(x1,y1,x2-x1,y2-y1);}finally{g.dispose();}}}
     }
 }

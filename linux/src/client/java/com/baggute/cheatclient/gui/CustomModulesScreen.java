@@ -22,7 +22,7 @@ public final class CustomModulesScreen extends Screen {
     private int left() { return Math.max(12,(width-650)/2); }
     private int top() { return 18; }
     @Override public void extractRenderState(GuiGraphicsExtractor g,int mouseX,int mouseY,float delta) {
-        UiRenderer.refreshTheme();g.fill(0,0,width,height,0xE010141D);
+        UiRenderer.refreshTheme();g.fill(0,0,width,height,0xF0000000|(ThemePalette.current().background()&0xFFFFFF));
         int x=left(),y=top(),w=Math.min(650,width-x-12);
         g.text(font,"CUSTOM MODULES",x,y,Ui.TEXT,true);y+=20;
         g.text(font,"1. Install the example, or import a JAR made with the UtilityClient SDK.",x,y,Ui.MUTED,true);y+=14;
