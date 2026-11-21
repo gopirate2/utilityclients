@@ -10,7 +10,8 @@ if (-not (Test-Path -LiteralPath $compiler)) { throw 'The .NET Framework C# comp
 Push-Location $project
 try {
     if (-not $SkipBuild) {
-        $arguments = @('bundle', '--console=plain')
+        # Distribution tasks inspect freshly built artifacts during execution.
+        $arguments = @('bundle', '--console=plain', '--no-configuration-cache')
         if ($Offline) { $arguments += '--offline' }
         & .\gradlew.bat @arguments
         if ($LASTEXITCODE -ne 0) { throw 'Bundle build failed.' }
