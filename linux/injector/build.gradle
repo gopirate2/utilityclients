@@ -1,0 +1,137 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.baggute.cheatclient'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+    // The agent half of this jar runs inside whatever JVM it is attached to, so it
+    // may only reference the JDK. ASM is the single exception and is shaded below
+    // so ClassFileTransformer can rewrite method bodies at runtime.
+    implementation 'org.ow2.asm:asm:9.10.1'
+    // asm-tree: the bridge patcher rewrites live Minecraft methods only after the
+    // game is running, which needs instructions inserted at a chosen point rather
+    // than a visit-in-order adapter.
+    implementation 'org.ow2.asm:asm-tree:9.10.1'
+    // UI side only: capture exclusion for the injector window. Shaded with the
+    // rest, and never referenced by the agent half.
+    implementation 'net.java.dev.jna:jna:5.17.0'
+    // UI side only: reading and rewriting fabric.mod.json during a persistent
+    // merge. Shaded like ASM, so the agent still needs nothing on the target.
+    implementation 'com.google.code.gson:gson:2.14.0'
+    // UI merge validation uses Fabric's own predicate/interval grammar. Only
+    // those classes are packaged below, so the agent never carries a loader.
+    implementation "net.fabricmc:fabric-loader:${rootProject.findProperty('loader_version') ?: '0.19.5'}"
+}
+
+// The hook payload is a separate, JDK-only jar nested inside injector.jar as
+// bootstrap/hooks.jar. It must NOT exist as a top-level class in injector.jar:
+// loadAgent() puts injector.jar on the system classpath, and Fabric's Knot will
+// find anything there and refuse to expose it to the game. From the bootstrap
+// loader it is visible to every class instead, which is what a rewritten
+// Minecraft method needs.
+sourceSets {
+    hooks {
+        java.srcDirs = ['src/hooks/java']
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    // 21, not 25: the jar has to load in a game JVM that may be older than the one
+    // used to build it.
+    options.release.set(21)
+    options.compilerArgs += ['-Xlint:all', '-Xlint:-serial']
+}
+
+// Only the bootstrap-safe classes. Nothing here may reference a non-JDK type.
+tasks.register('hooksJar', Jar) {
+    archiveFileName = 'hooks.jar'
+    destinationDirectory = layout.buildDirectory.dir('hooks')
+    from sourceSets.hooks.output
+}
+
+// One jar, three roles: double-click to launch the UI (Main-Class), the file
+// loadAgent() attaches (Agent-Class), and the carrier for the nested hook payload.
+// ASM is shaded so the agent needs nothing else on the target's classpath.
+jar {
+    archiveFileName = 'injector.jar'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    dependsOn tasks.named('hooksJar')
+
+    from({
+        configurations.runtimeClasspath.findAll { !it.name.startsWith('fabric-loader-') }
+            .collect { it.isDirectory() ? it : zipTree(it) }
+    }) {
+        exclude 'META-INF/MANIFEST.MF'
+        exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+        exclude 'module-info.class'
+    }
+
+    from({ zipTree(configurations.runtimeClasspath.find { it.name.startsWith('fabric-loader-') }) }) {
+        include 'net/fabricmc/loader/api/Version*.class'
+        include 'net/fabricmc/loader/api/SemanticVersion.class'
+        include 'net/fabricmc/loader/api/metadata/version/**'
+        include 'net/fabricmc/loader/impl/util/version/**'
+        include 'net/fabricmc/loader/util/version/**'
+    }
+    from({ zipTree(configurations.runtimeClasspath.find { it.name.startsWith('fabric-loader-') }) }) {
+        include 'LICENSE*'
+        into 'META-INF/licenses/fabric-loader'
+    }
+
+    from(tasks.named('hooksJar')) {
+        into 'bootstrap'
+    }
+
+    manifest {
+        attributes(
+                'Main-Class': 'com.baggute.cheatclient.injector.InjectorMain',
+                'Agent-Class': 'com.baggute.cheatclient.injector.agent.ClientAgent',
+                'Premain-Class': 'com.baggute.cheatclient.injector.agent.ClientAgent',
+                'Can-Retransform-Classes': 'true',
+                'Can-Redefine-Classes': 'true',
+                'Implementation-Title': 'UtilityClient injector',
+                'Implementation-Version': archiveVersion
+        )
+    }
+}
+
+tasks.register('run', JavaExec) {
+    group = 'application'
+    description = 'Launch the injector UI from source.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.baggute.cheatclient.injector.InjectorMain'
+}
+
+sourceSets {
+    regression {
+        compileClasspath += sourceSets.main.output + configurations.runtimeClasspath
+        runtimeClasspath += sourceSets.main.output + configurations.runtimeClasspath
+    }
+}
+
+dependencies {
+    // Only the real Knot loader fixtures need Mixin; the shipped agent remains unchanged.
+    regressionRuntimeOnly 'net.fabricmc:sponge-mixin:0.17.5+mixin.0.8.7'
+}
+
+tasks.register('regressionCheck', JavaExec) {
+    dependsOn tasks.named('regressionClasses')
+    dependsOn tasks.named('jar')
+    classpath = sourceSets.regression.runtimeClasspath
+    mainClass = 'com.baggute.cheatclient.injector.RegressionChecks'
+}
+tasks.named('check') { dependsOn tasks.named('regressionCheck') }

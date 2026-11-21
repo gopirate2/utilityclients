@@ -1,0 +1,14 @@
+package com.baggute.cheatclient.module.render;
+
+import com.baggute.cheatclient.UtilityClient;
+import com.baggute.cheatclient.module.Category;
+import com.baggute.cheatclient.module.Module;
+import com.baggute.cheatclient.settings.ColorSetting;
+import com.baggute.cheatclient.settings.DoubleSetting;
+public final class ArmorIndicators extends Module {
+    public final DoubleSetting range=new DoubleSetting("range","Indicator range",64.0,8.0,256.0); public final DoubleSetting scale=new DoubleSetting("scale","Armor point icon size",1.5,0.75,4.0); public final ColorSetting color=new ColorSetting("color","Armor color",0xFF55AAFF);
+    public ArmorIndicators(){super("ArmorIndicators","Shows armor indicators on players.",Category.RENDER);addSetting(range);addSetting(scale);addSetting(color);}
+    public double getRange(){return range.get();} public double getScale(){return scale.get();} public int getColor(){return color.get();}
+
+}
+

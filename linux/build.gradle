@@ -1,0 +1,174 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'maven-publish'
+}
+
+repositories {
+	flatDir { dirs "vendor" }
+	maven { url "https://maven.shedaniel.me/" }
+	maven { url "https://maven.latticg.com/" }
+	maven { url "https://maven.seedfinding.com/" }
+	maven { url "https://maven-snapshots.seedfinding.com/" }
+	maven { url "https://jitpack.io" }
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"cheatclient" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+
+dependencies {
+	include implementation("bundled:baritone-unoptimized-fabric:1.19.0") { transitive = false }
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	// JNA for SetFileAttributesW and the stealth DLL. Not bundled: Fabric Loader
+	// already ships JNA 5.x to every mod, so the classes resolve at runtime and
+	// the jar stays small. Compile-time only here.
+	implementation "net.java.dev.jna:jna:5.17.0"
+    include implementation("net.java.dev.jna:jna-platform:5.17.0") { transitive = false }
+	include implementation("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") { transitive = false }
+	include implementation("com.seedfinding:mc_math:${project.seedfinding_math_version}") { transitive = false }
+	include implementation("com.seedfinding:mc_seed:${project.seedfinding_seed_version}") { transitive = false }
+	include implementation("com.seedfinding:mc_core:${project.seedfinding_core_version}") { transitive = false }
+	include implementation("com.seedfinding:mc_noise:${project.seedfinding_noise_version}") { transitive = false }
+	include implementation("com.seedfinding:mc_biome:${project.seedfinding_biome_version}") { transitive = false }
+	include implementation("com.seedfinding:mc_terrain:${project.seedfinding_terrain_version}") { transitive = false }
+	include implementation("com.seedfinding:mc_feature:${project.seedfinding_feature_version}") { transitive = false }
+	include implementation("com.seedfinding:mc_reversal:${project.seedfinding_reversal_version}") { transitive = false }
+	include implementation("com.seedfinding:latticg:${project.latticg_version}")
+}
+
+loom {
+	accessWidenerPath = file("src/main/resources/seedcrackerx.aw")
+}
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+}
+
+java {
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+def sourceDigest = java.security.MessageDigest.getInstance('SHA-256')
+fileTree('src').matching { include '**/*.java', '**/*.json', '**/*.aw' }.files
+        .sort { a, b -> a.path <=> b.path }.each { source ->
+    sourceDigest.update(projectDir.toPath().relativize(source.toPath()).toString().replace('\\', '/').getBytes('UTF-8'))
+    sourceDigest.update(source.bytes)
+}
+def sourceFingerprint = sourceDigest.digest().encodeHex().toString()
+tasks.withType(Jar).configureEach {
+    manifest.attributes('Implementation-Source-SHA256': sourceFingerprint)
+}
+
+jar {
+    from('vendor') { include 'LICENSE-Baritone.txt', 'README.md'; into 'META-INF/third-party/baritone' }
+	def projectName = project.name
+	inputs.property "projectName", projectName
+
+	from("LICENSE") {
+		rename { "${it}_$projectName" }
+	}
+
+	// This jar is one thing only: a Fabric mod. The injector is its own build
+	// (./gradlew -p injector jar) because an agent jar must not depend on Loom,
+	// Minecraft, or anything else the target JVM would have to resolve.
+	manifest {
+		attributes(
+			"Implementation-Title": "UtilityClient",
+			"Implementation-Version": version
+		)
+	}
+}
+
+// GitHub rejects the .jar extension on release upload for some accounts. This packs
+// the built mod as cheatclient.jar.zip; the injector's RemoteClient unpacks the jar
+// back out, so the download side needs no explanation and no manual rename.
+// What a friend downloads: both jars and the two installers, in one archive, no
+// token and no source. The installers unpack into the same hidden folder the
+// client reads, so nothing has to be configured by hand.
+ext.utilityClientInjectorDir = file('../injector/build.gradle').isFile() ? file('../injector') : file('injector')
+
+tasks.register('buildInjector', GradleBuild) {
+    dir = utilityClientInjectorDir
+    tasks = ['build']
+}
+
+tasks.register('bundle', Zip) {
+    group = 'distribution'
+    description = 'Builds the distributable archive: client jar, injector jar, installers.'
+    archiveFileName = "UtilityClient-${project.version}.zip"
+    destinationDirectory = layout.buildDirectory.dir('dist')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    def injectorArtifact = new File(utilityClientInjectorDir, 'build/libs/injector.jar')
+
+    dependsOn tasks.named('jar'), tasks.named('buildInjector')
+
+    from(tasks.named('jar')) { rename { 'cheatclient.jar' } }
+    // The injector is a separate Gradle build, not a subproject: reference it by
+    // path so the root build never needs an include it does not own.
+    doFirst {
+        if (!injectorArtifact.isFile()) throw new GradleException('Injector artifact is missing')
+    }
+    from(new File(utilityClientInjectorDir, 'build/libs/injector.jar')) { rename { 'injector.jar' } }
+    from('dist') { include 'install.sh', 'install-artifacts.py', 'java-runtime.py', 'README.md' }
+    from('vendor') { include 'LICENSE-Baritone.txt', 'README.md', 'baritone-1.19.0-source.zip'; into 'third-party/baritone' }
+}
+
+tasks.register('releaseZip', Zip) {
+	dependsOn 'build'
+	archiveFileName = 'cheatclient.jar.zip'
+	destinationDirectory = layout.buildDirectory.dir('release')
+
+	from(layout.buildDirectory.dir('libs')) {
+		include 'cheatclient-*.jar'
+		exclude '*-sources.jar', '*-dev.jar'
+		rename { 'cheatclient.jar' }
+	}
+}
+
+ext.utilityClientLinuxBundle = true
+apply from: 'dist/bundle-checksums.gradle'
+
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+
+	repositories {
+	}
+}
+
+sourceSets {
+    regression {
+        compileClasspath += sourceSets.client.output + sourceSets.main.output + configurations.clientCompileClasspath
+        runtimeClasspath += sourceSets.client.output + sourceSets.main.output + configurations.clientRuntimeClasspath
+    }
+}
+tasks.register('regressionCheck', JavaExec) {
+    dependsOn tasks.named('regressionClasses')
+    classpath = sourceSets.regression.runtimeClasspath
+    mainClass = 'com.baggute.cheatclient.InteractionMathChecks'
+}
+tasks.named('check') { dependsOn tasks.named('regressionCheck') }

@@ -1,0 +1,31 @@
+{
+  "required": true,
+  "package": "com.baggute.cheatclient.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "MinecraftMixin",
+    "client.ClientInputMixin",
+    "client.KeyboardMixin",
+    "client.MouseMixin",
+    "client.ContainerMouseTweaksMixin",
+    "client.EspHookMixin",
+    "client.GameModeAttackMixin",
+    "client.PlayerReachMixin",
+    "client.CameraZoomMixin",
+    "client.PacketDelayMixin",
+    "client.PlayerInfoMixin",
+    "client.HandRenderMixin",
+    "client.MinecraftRenderMixin",
+    "client.StepHeightMixin",
+    "client.FreecamMixin",
+    "client.EntityMixin",
+    "client.HudMixin",
+    "client.GammaMixin",
+    "client.KnockbackMixin",
+    "client.VelocityMixin",
+    "client.ExplosionVelocityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

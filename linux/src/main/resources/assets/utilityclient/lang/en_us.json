@@ -1,0 +1,6 @@
+{
+  "key.categories.utilityclient.gui": "UtilityClient",
+  "key.utilityclient.gui": "Open UtilityClient",
+  "key.utilityclient.gui.alt": "Open UtilityClient (alternate)",
+  "key.utilityclient.terminal": "Open the UtilityClient terminal"
+}

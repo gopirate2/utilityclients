@@ -1,0 +1,46 @@
+// Shared by the Windows and Linux source builds.
+// The platform is explicit in the root build; avoid deriving it from the host OS.
+def linuxBundle = project.ext.has('utilityClientLinuxBundle') && project.ext.utilityClientLinuxBundle
+def bundleManifest = layout.buildDirectory.file('bundle-integrity/SHA256SUMS')
+tasks.register('bundleChecksums') {
+    dependsOn tasks.named('jar'), tasks.named('buildInjector')
+    outputs.file(bundleManifest)
+    outputs.upToDateWhen { false }
+    doLast {
+        def members = ['cheatclient.jar': tasks.named('jar').get().archiveFile.get().asFile,
+                       'injector.jar': new File(utilityClientInjectorDir, 'build/libs/injector.jar')]
+        def installers = linuxBundle ? ['install.sh', 'install-artifacts.py', 'java-runtime.py', 'README.md'] : ['install.sh', 'install.ps1', 'install-artifacts.py', 'java-runtime.py', 'README.md']
+        installers.each { members[it] = file('dist/' + it) }
+        ['LICENSE-Baritone.txt', 'README.md', 'baritone-1.19.0-source.zip'].each { members['third-party/baritone/' + it] = file('vendor/' + it) }
+        def hash = { File input ->
+            def sha = java.security.MessageDigest.getInstance('SHA-256')
+            input.withInputStream { stream ->
+                byte[] buffer = new byte[65536]; int count
+                while ((count = stream.read(buffer)) > 0) sha.update(buffer, 0, count)
+            }
+            sha.digest().encodeHex().toString()
+        }
+        def destination = bundleManifest.get().asFile
+        destination.parentFile.mkdirs()
+        destination.text = members.sort().collect { name, input -> hash(input) + '  ' + name + '\n' }.join('')
+        def raw = file('build/dist/cheatclient.jar.sha256')
+        raw.parentFile.mkdirs(); raw.text = hash(members['cheatclient.jar']) + '  cheatclient.jar\n'
+        file('build/dist/injector.jar.sha256').text = hash(members['injector.jar']) + '  injector.jar\n'
+    }
+}
+tasks.named('bundle') {
+    dependsOn tasks.named('bundleChecksums')
+    from(bundleManifest)
+    doLast {
+        File output = archiveFile.get().asFile
+        def hash = java.security.MessageDigest.getInstance('SHA-256').digest(output.bytes).encodeHex().toString()
+        new File(output.parentFile, output.name + '.sha256').text = hash + '  ' + output.name + '\n'
+    }
+}
+tasks.named('releaseZip') {
+    doLast {
+        File output = archiveFile.get().asFile
+        def hash = java.security.MessageDigest.getInstance('SHA-256').digest(output.bytes).encodeHex().toString()
+        new File(output.parentFile, output.name + '.sha256').text = hash + '  ' + output.name + '\n'
+    }
+}

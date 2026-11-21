@@ -1,0 +1,53 @@
+# gradle
+
+.gradle/
+build/
+out/
+classes/
+
+# eclipse
+
+*.launch
+
+# idea
+
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# vscode
+
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+
+# macos
+
+*.DS_Store
+
+# fabric
+
+run/
+
+# java
+
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
+
+# archives and packaged builds
+*.zip
+*.jar
+*.uc-backup
+dist/update-server.local.json
+!vendor/baritone-unoptimized-fabric-1.19.0.jar
+!vendor/baritone-1.19.0-source.zip
+!linux/vendor/baritone-unoptimized-fabric-1.19.0.jar
+!linux/vendor/baritone-1.19.0-source.zip
+!gradle/wrapper/gradle-wrapper.jar
+__pycache__/
+*.pyc
