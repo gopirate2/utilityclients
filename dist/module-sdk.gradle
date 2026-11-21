@@ -1,0 +1,17 @@
+// Ship a ready-to-install example alongside the editable SDK sources.
+tasks.register('compileSdkExample', JavaCompile) {
+    dependsOn tasks.named('compileClientJava')
+    source 'src/client/resources/module-sdk/example/src/example/HelloProvider.java'
+    classpath = sourceSets.client.compileClasspath + sourceSets.client.output.classesDirs
+    destinationDirectory = layout.buildDirectory.dir('module-sdk/classes')
+    options.release.set(25)
+    options.encoding = 'UTF-8'
+}
+tasks.register('sdkExampleJar', Jar) {
+    dependsOn tasks.named('compileSdkExample')
+    archiveFileName = 'HelloModules.jar'
+    destinationDirectory = layout.buildDirectory.dir('module-sdk')
+    from(layout.buildDirectory.dir('module-sdk/classes')) { include '**/*.class' }
+    from('src/client/resources/module-sdk/example/resources')
+}
+tasks.named('jar') { from(tasks.named('sdkExampleJar')) { into 'module-sdk' } }

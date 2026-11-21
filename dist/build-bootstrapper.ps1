@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$SkipBuild, [switch]$Offline, [string]$Jdk = $env:JAVA_HOME, [string]$LinuxBundle, [string]$Python = 'python')
+param([switch]$SkipBuild, [switch]$Offline, [string]$Jdk = $env:JAVA_HOME, [string]$LinuxBundle, [string]$Python = 'python', [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path -Parent $PSScriptRoot
 $clientVersion = ((Get-Content -LiteralPath (Join-Path $project 'gradle.properties') | Where-Object { $_ -match '^version=' }) -replace '^version=','').Trim()
@@ -26,7 +26,7 @@ try {
     if (-not $LinuxBundle) { $LinuxBundle = Join-Path $project "linux\build\dist\UtilityClient-$clientVersion.zip" }
     $LinuxBundle = [IO.Path]::GetFullPath($LinuxBundle)
     if (-not (Test-Path -LiteralPath $LinuxBundle)) { throw 'Build the matching Linux bundle, or pass -LinuxBundle to its verified ZIP.' }
-    $out = Join-Path $project 'build\bootstrapper'
+    $out = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $project 'build\bootstrapper' }
     New-Item -ItemType Directory -Force -Path $out | Out-Null
     $work = Join-Path $out ('package-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $work | Out-Null

@@ -251,6 +251,7 @@ tasks.named('processClientResources') {
     filesMatching('fabric.mod.json') { expand 'version': clientVersion }
 }
 apply from: 'dist/bundle-checksums.gradle'
+apply from: 'dist/module-sdk.gradle'
 
 publishing {
 	publications {

@@ -9,4 +9,4 @@ New-Item -ItemType Directory -Path $output -Force | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Compilation failed; use a Java 25 JDK and the matching client/game classpath' }
 & jar --create --file (Join-Path $PSScriptRoot '..\HelloModules.jar') -C $output . -C (Join-Path $PSScriptRoot 'example\resources') .
 if ($LASTEXITCODE -ne 0) { throw 'JAR creation failed' }
-Write-Output 'Created HelloModules.jar. Restart UtilityClient and search for HelloCustom.'
+Write-Output 'Created HelloModules.jar. Click Reload in Modules for a new JAR; restart Minecraft after replacing a loaded one. Search for HelloCustom.'

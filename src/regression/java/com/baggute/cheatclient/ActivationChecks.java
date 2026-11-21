@@ -625,6 +625,10 @@ public final class ActivationChecks {
         require(recipe.ingredients().equals(List.of(Items.NETHER_WART,Items.BLAZE_POWDER))&&recipe.extended().equals("8:00")&&recipe.strong().equals("1:30"), "strength guide includes real ingredient order and extended/strong variants");
         require(com.baggute.cheatclient.gui.PotionRecipeScreen.recipe("invis").ingredients().getLast()==Items.FERMENTED_SPIDER_EYE, "invisibility corrupts night vision");
         require(com.baggute.cheatclient.gui.PotionRecipeScreen.recipe("weakness").ingredients().equals(List.of(Items.FERMENTED_SPIDER_EYE)), "weakness starts from water without nether wart");
+        for(var id:net.minecraft.core.registries.BuiltInRegistries.POTION.keySet())
+            require(com.baggute.cheatclient.gui.PotionRecipeScreen.parse(id.toString())!=null,"every registered vanilla potion has a guide: "+id);
+        require(com.baggute.cheatclient.gui.PotionRecipeScreen.parse("splash_strong_healing").strong(),"splash and strong registry aliases supported");
+        require(com.baggute.cheatclient.gui.PotionRecipeScreen.parse("minecraft:long_fire_resistance").extended(),"namespace and long registry aliases supported");
 
         setup();manager=new ModuleManager();UtilityClient.moduleManager=manager;
         var menu=allocate(net.minecraft.world.inventory.InventoryMenu.class);menu.setCarried(ItemStack.EMPTY);

@@ -15,12 +15,14 @@ public final class CustomModules implements AutoCloseable {
     public static final String SERVICE = "META-INF/services/com.baggute.cheatclient.api.ModuleProvider";
     private final List<URLClassLoader> loaders = new ArrayList<>();
     private final List<String> diagnostics = new ArrayList<>();
+    private final Map<Path,String> loadedFiles = new HashMap<>();
     public static Path directory() { return Storage.root().resolve("utilityclient/modules"); }
     public List<String> diagnostics() { return List.copyOf(diagnostics); }
     public void load(ModuleManager manager, Path directory) {
+        diagnostics.clear();
         try {
             Files.createDirectories(directory);
-            for (String name : new String[]{"README.md", "build.ps1", "build.sh", "example/src/example/HelloProvider.java", "example/resources/META-INF/services/com.baggute.cheatclient.api.ModuleProvider"}) {
+            for (String name : new String[]{"README.md", "build.ps1", "build.sh", "HelloModules.jar", "example/src/example/HelloProvider.java", "example/resources/META-INF/services/com.baggute.cheatclient.api.ModuleProvider"}) {
                 Path target = directory.resolve("SDK").resolve(name);
                 if (!Files.exists(target)) try (var input = CustomModules.class.getResourceAsStream("/module-sdk/" + name)) {
                     if (input != null) { Files.createDirectories(target.getParent()); Files.copy(input, target); }
@@ -33,6 +35,12 @@ public final class CustomModules implements AutoCloseable {
                 URLClassLoader loader = null;
                 try {
                     if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.size(path) > 16L * 1024 * 1024) throw new IOException("JAR is linked or larger than 16 MiB");
+                    Path key=path.toAbsolutePath().normalize();
+                    String fingerprint=fingerprint(path);
+                    if(loadedFiles.containsKey(key)) {
+                        diagnostics.add(path.getFileName()+": "+(loadedFiles.get(key).equals(fingerprint)?"already loaded":"changed; restart Minecraft to replace the loaded module"));
+                        continue;
+                    }
                     List<String> providers;
                     try (JarFile jar = new JarFile(path.toFile())) {
                         var entry = jar.getJarEntry(SERVICE);
@@ -56,6 +64,7 @@ public final class CustomModules implements AutoCloseable {
                         batch.addAll(modules);
                     }
                     manager.registerCustom(batch);
+                    loadedFiles.put(key,fingerprint);
                     loaders.add(loader); loader = null;
                     diagnostics.add(path.getFileName() + ": loaded " + batch.size() + " modules");
                 } catch (Throwable error) {
@@ -69,5 +78,37 @@ public final class CustomModules implements AutoCloseable {
     @Override public void close() {
         for (URLClassLoader loader : loaders) try { loader.close(); } catch (IOException ignored) {}
         loaders.clear();
+        loadedFiles.clear();
+    }
+    private static String fingerprint(Path path) throws IOException {
+        try { return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path))); }
+        catch(java.security.NoSuchAlgorithmException error) { throw new IOException(error); }
+    }
+    public static Path importJar(Path source) throws IOException {
+        source=source.toAbsolutePath().normalize();
+        if(!Files.isRegularFile(source,LinkOption.NOFOLLOW_LINKS)||Files.size(source)>16L*1024*1024||!source.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar"))
+            throw new IOException("Choose a custom module JAR no larger than 16 MiB.");
+        try(var jar=new JarFile(source.toFile())) {
+            if(jar.getJarEntry(SERVICE)==null) throw new IOException("This is not a UtilityClient custom module. Build it with the SDK's ModuleProvider service file.");
+        }
+        Files.createDirectories(directory());
+        Path target=directory().resolve(source.getFileName()).toAbsolutePath().normalize();
+        if(source.equals(target)) return target;
+        if(Files.exists(target)) {
+            if(fingerprint(source).equals(fingerprint(target)))return target;
+            throw new IOException("That filename already exists. Restart after replacing it manually, or choose a different filename.");
+        }
+        Files.copy(source,target);
+        return target;
+    }
+    public static Path installExample() throws IOException {
+        Files.createDirectories(directory());
+        Path target=directory().resolve("HelloModules.jar");
+        if(Files.exists(target)) return target;
+        try(var input=CustomModules.class.getResourceAsStream("/module-sdk/HelloModules.jar")) {
+            if(input==null) throw new IOException("The ready-made example is available in the packaged release. The SDK also contains build scripts.");
+            Files.copy(input,target);
+        }
+        return target;
     }
 }

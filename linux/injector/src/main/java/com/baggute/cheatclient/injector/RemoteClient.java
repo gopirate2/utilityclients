@@ -63,7 +63,7 @@ public final class RemoteClient {
     }
 
     /** The newest published release, plus the asset chosen inside it. */
-    private record Pick(Asset asset, String tag, String published) {
+    private record Pick(Asset asset, String tag, String published, String title) {
     }
 
     /** A release paired with the file chosen from it, for ranking. */
@@ -104,6 +104,24 @@ public final class RemoteClient {
 
     public static Result fetch(String repo, String path) {
         return fetch(repo, path, ignored -> { });
+    }
+    public record UpdateCheck(boolean available, boolean current, String message, String releaseUrl) {}
+    public static UpdateCheck checkLatest(Path current) {
+        try {
+            Pick pick=latestRelease(defaultRepo());
+            return describeUpdate(pick, current);
+        } catch(Exception failure) {
+            return new UpdateCheck(false,false,"Update check unavailable: "+describe(failure)+". The selected local client is still available.","");
+        }
+    }
+    private static UpdateCheck describeUpdate(Pick pick, Path current) throws IOException {
+        if(pick==null) return new UpdateCheck(false,false,"No compatible stable GitHub release is published.","");
+        var identity=java.util.regex.Pattern.compile("^UtilityClient ([0-9]+\\.[0-9]+\\.[0-9]+) \\u2014 ([0-9a-f]{16})$").matcher(pick.title());
+        boolean matches=false;
+        if(identity.matches() && current!=null && Files.isRegularFile(current))
+            matches=ClientJar.versionOf(current).equals(identity.group(1)) && ClientIntegrity.sha256(current).startsWith(identity.group(2));
+        String message=matches?"You're up to date: "+pick.title():"Update available: "+pick.title()+". Choose FETCH CLIENT to download and verify it.";
+        return new UpdateCheck(true,matches,message,"https://github.com/"+defaultRepo()+"/releases/tag/"+pick.tag());
     }
 
     public static Result fetch(String repo, String path, java.util.function.Consumer<String> progress) {
@@ -226,7 +244,7 @@ public final class RemoteClient {
         JsonObject release = newest.release();
 
         String tag = release.has("tag_name") ? release.get("tag_name").getAsString() : "?";
-        return new Pick(newest.asset(), tag, day(stamp(release)));
+        return new Pick(newest.asset(), tag, day(stamp(release)), release.has("name") ? release.get("name").getAsString() : tag);
     }
 
     /** Fallback lookup by the old fixed tag, only when the list is unreadable. */
@@ -253,7 +271,7 @@ public final class RemoteClient {
 
         Asset asset = newestAsset(release.getAsJsonArray("assets"));
         if (asset == null) return null;
-        return new Pick(asset, RELEASE_TAG, day(stamp(release)));
+        return new Pick(asset, RELEASE_TAG, day(stamp(release)), release.has("name") ? release.get("name").getAsString() : RELEASE_TAG);
     }
 
     /**
@@ -273,12 +291,13 @@ public final class RemoteClient {
 
             String fileName = asset.get("name").getAsString();
             String name = fileName.toLowerCase(java.util.Locale.ROOT);
-            if (name.contains("-sources") || name.contains("-dev") || name.contains("injector") || name.contains("update") || name.contains("setup")) continue;
+            if (name.contains("-sources") || name.contains("-dev") || name.contains("injector") || name.contains("setup")) continue;
             boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
             if (windows && name.contains("linux") || !windows && name.contains("windows")) continue;
 
             int rank;
-            if ((name.startsWith("cheatclient") || name.startsWith("utilityclient")) && name.endsWith(".jar")) rank = 0;
+            if (name.equals("utilityclient-update.zip")) rank = 0;
+            else if ((name.startsWith("cheatclient") || name.startsWith("utilityclient")) && name.endsWith(".jar")) rank = 0;
             else if ((name.startsWith("utilityclient") || name.startsWith("cheatclient"))
                     && name.endsWith(".zip")) rank = 2;
             else continue;
@@ -450,6 +469,8 @@ public final class RemoteClient {
             try (ZipFile zip = new ZipFile(downloaded.toFile())) {
                 if (isJar(zip)) {
                     Files.copy(downloaded, pending, StandardCopyOption.REPLACE_EXISTING);
+                } else if (zip.getEntry("update.json") != null) {
+                    innerName=extractUpdateClient(zip,pending);
                 } else {
                     ZipEntry chosen = pickInnerJar(zip);
                     if (chosen == null) throw new IOException(label + " is a zip with no jar inside");
@@ -481,6 +502,36 @@ public final class RemoteClient {
                     throw new IOException("Wrong client mod identity: " + id);
             } catch (RuntimeException malformed) { throw new IOException("Invalid client metadata", malformed); }
         }
+    }
+    private static String extractUpdateClient(ZipFile update, Path pending) throws IOException {
+        JsonObject metadata;
+        try(var input=update.getInputStream(update.getEntry("update.json"))) {
+            metadata=JsonParser.parseString(new String(input.readNBytes(65537),StandardCharsets.UTF_8)).getAsJsonObject();
+        } catch(RuntimeException malformed) { throw new IOException("Invalid update manifest",malformed); }
+        if(!metadata.has("schema") || !metadata.get("schema").getAsString().equals("1")
+                || !metadata.has("repository") || !metadata.get("repository").getAsString().equals(defaultRepo())) throw new IOException("Wrong update package format or repository");
+        String name=System.getProperty("os.name","").toLowerCase(java.util.Locale.ROOT).contains("win")?"Payload.zip":"LinuxBundle.zip";
+        ZipEntry entry=update.getEntry(name);
+        if(entry==null || entry.getSize()>512L*1024*1024) throw new IOException("Missing or oversized platform bundle");
+        String expected=metadata.getAsJsonObject("files").get(name).getAsString();
+        if(!expected.matches("(?i)[0-9a-f]{64}")) throw new IOException("Invalid platform bundle checksum");
+        Path bundle=Files.createTempFile(pending.getParent(),"uc-platform-",".zip");
+        try {
+            try(var input=update.getInputStream(entry);var output=Files.newOutputStream(bundle)) {
+                byte[] buffer=new byte[65536];long total=0;int count;
+                while((count=input.read(buffer))!=-1) { total+=count;if(total>512L*1024*1024)throw new IOException("Platform expansion limit exceeded");output.write(buffer,0,count); }
+            }
+            if(!ClientIntegrity.sha256(bundle).equalsIgnoreCase(expected))throw new IOException("Platform bundle checksum mismatch");
+            try(var zip=new ZipFile(bundle.toFile())) {
+                ZipEntry client=zip.getEntry("cheatclient.jar");
+                if(client==null||client.getSize()>64L*1024*1024) throw new IOException("Missing or oversized client JAR");
+                try(var input=zip.getInputStream(client);var output=Files.newOutputStream(pending)) {
+                    byte[] buffer=new byte[65536];long total=0;int count;
+                    while((count=input.read(buffer))!=-1) { total+=count;if(total>64L*1024*1024)throw new IOException("Client expansion limit exceeded");output.write(buffer,0,count); }
+                }
+            }
+            return "unpacked "+name+"/cheatclient.jar";
+        } finally { Files.deleteIfExists(bundle); }
     }
 
     /** A jar has classes; a zip-of-jars only has jars. */

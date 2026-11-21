@@ -93,10 +93,27 @@ internal sealed partial class SetupForm {
             if (repair) BeginInstall();
         });
     }
-    private void CheckUpdates() {
-        MaintenanceWork("CHECKING PUBLISHED UPDATES", delegate { return Bootstrapper.FindUpdate(); }, delegate(object value) {
+    private void CheckStartupUpdates() { if (Bootstrapper.AutoUpdates) CheckUpdates(true); }
+    private void CheckUpdates() { CheckUpdates(false); }
+    private void CheckUpdates(bool automatic) {
+        MaintenanceWork("CHECKING PUBLISHED UPDATES", delegate {
+            try { return (object)Bootstrapper.DiscoverUpdate(); }
+            catch (System.Net.WebException error) {
+                if (!automatic) throw;
+                return "GitHub update check unavailable (" + error.Status + "). The cached or embedded package remains available.";
+            }
+        }, delegate(object value) {
+            if (value is string) { heading.Text = "OFFLINE PACKAGE READY"; AddLog("UPDATE", (string)value, Muted); return; }
             Bootstrapper.UpdateRelease release = (Bootstrapper.UpdateRelease)value;
             AddLog("UPDATE", release.Description().Replace("\n", " "), release.Available ? Cyan : Muted);
+            if (automatic) {
+                heading.Text = release.Installed ? "YOU'RE UP TO DATE" : release.Available ? "UPDATE AVAILABLE" : "OFFLINE PACKAGE READY";
+                if (release.Available && !release.Installed) {
+                    install.Text = "UPDATE";
+                    AddLog("UPDATE", "Choose UPDATE to download, verify and install the latest release.", Cyan);
+                }
+                return;
+            }
             if (!release.Available) { heading.Text = "NO COMPATIBLE UPDATE PUBLISHED"; MessageBox.Show(release.Description(), "UtilityClient updates", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             if (release.Installed) { heading.Text = "YOU'RE UP TO DATE"; MessageBox.Show(release.Description(), "UtilityClient updates", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             if (MessageBox.Show(release.Description() + "\n\nDownload, verify and install this release?", "UtilityClient update", MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;

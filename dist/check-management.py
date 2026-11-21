@@ -91,6 +91,9 @@ Write-Output 'PASS: stable release ranking, asset digest, absent digest rejectio
 result = subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(fixture_script), str(EXE)], capture_output=True, text=True, timeout=30)
 assert result.returncode == 0, result.stdout + result.stderr
 passed('update discovery and validation use isolated release fixtures')
+result = subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(PROJECT / 'dist/check-startup-updates.ps1'), '-Setup', str(EXE), '-Root', str(WORK)], capture_output=True, text=True, timeout=45)
+assert result.returncode == 0, result.stdout + result.stderr
+passed('setup opening checks updates automatically with current/new/offline and failure fixtures')
 
 ROOT.mkdir(); (ROOT / 'utilityclient.json').write_text('saved settings')
 profiles = ROOT / 'utilityclient/presets'; profiles.mkdir(parents=True); (profiles / 'mine.json').write_text('saved profile')

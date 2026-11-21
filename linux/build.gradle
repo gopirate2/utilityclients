@@ -148,6 +148,7 @@ tasks.register('releaseZip', Zip) {
 
 ext.utilityClientLinuxBundle = true
 apply from: 'dist/bundle-checksums.gradle'
+apply from: 'dist/module-sdk.gradle'
 tasks.named('processClientResources') {
     def clientVersion = project.version.toString()
     from('vendor/baritone-unoptimized-fabric-1.19.0.jar') { into 'sideload'; rename { 'baritone.jar' } }

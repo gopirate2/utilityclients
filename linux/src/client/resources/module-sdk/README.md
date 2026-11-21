@@ -1,12 +1,12 @@
 # UtilityClient module SDK — API 1
 
-Open **MODULES** in the client menu. Put custom `.jar` files directly in that folder and restart the client. The SDK folder contains a complete working example. `load-report.txt` records successful imports and errors; a broken JAR does not stop other imports.
+Open **MODULES** in the client menu to open the extension panel. **Install Example** installs a ready-built HelloCustom module without a JDK. To install your own JAR, paste its full path and press Enter, or copy it into the folder and press **Reload**. New modules load immediately. Replacing or removing an already-loaded JAR requires restarting Minecraft. `load-report.txt` and the panel show successful imports and errors; a broken JAR does not stop other imports.
 
 Custom modules appear in their selected category. UtilityClient adds a toggle keybind, saves their settings in profiles, and calls their normal Module hooks. Module names must be unique, including built-in names. JARs execute inside the game process: install extensions from authors you trust.
 
 ## Build the example
 
-Install a Java 25 JDK. From this SDK folder, run `./build.ps1` on Windows or `sh ./build.sh` on Linux. The script finds the installed client JAR three directories above this folder; for another layout, supply its path. It builds `../HelloModules.jar`. Restart UtilityClient, search for **HelloCustom**, set its keybind, and toggle it. The example uses a local notification and sends no server chat.
+The packaged release includes a ready-built `HelloModules.jar`; the panel can install it directly. To edit and compile the example yourself, install a Java 25 JDK. From this SDK folder, run `./build.ps1` on Windows or `sh ./build.sh` on Linux. The script finds the installed client JAR three directories above this folder; for another layout, supply its path. It builds `../HelloModules.jar`. Reload new JARs or restart after replacements, search for **HelloCustom**, set its keybind, and toggle it. The example uses a local notification and sends no server chat.
 
 Windows: `./build.ps1 -ClientJar C:\path\cheatclient.jar`
 

@@ -170,6 +170,8 @@ public class ModuleManager {
     }
 
     public void closeCustomModules() { customModules.close(); }
+    public List<String> customDiagnostics() { return customModules.diagnostics(); }
+    public void reloadCustomModules() { customModules.load(this,CustomModules.directory()); }
     public void registerCustom(java.util.Collection<? extends Module> batch) {
         java.util.Set<String> names = new java.util.HashSet<>();
         for (Module existing : modules) names.add(existing.getName().toLowerCase(java.util.Locale.ROOT));

@@ -78,6 +78,9 @@ public final class ExtensionsThemeChecks {
             require(imported != null && imported.getSettings().stream().anyMatch(s -> s instanceof KeybindSetting), "actual JAR imported with keybind");
             require(manager.getModules().stream().filter(m -> m.getName().equals("HelloCustom")).count() == 1, "duplicate JAR cannot replace module");
             require(loader.diagnostics().size() == 3 && Files.readString(jars.resolve("load-report.txt")).contains("loaded 1"), "failure diagnostics retained");
+            loader.load(manager,jars);
+            require(manager.getByName("HelloCustom")==imported,"reload retains the original live module instance");
+            require(loader.diagnostics().stream().anyMatch(line->line.contains("already loaded")),"unchanged providers are not run twice on reload");
             int before = manager.getModules().size();
             try { manager.registerCustom(List.of(new Module("UniqueFixture", "fixture", Category.MISC){}, new Module("Appearance", "duplicate", Category.MISC){})); throw new AssertionError("duplicate accepted"); }
             catch (IllegalArgumentException expected) { require(manager.getModules().size() == before, "batch rejection is atomic"); }

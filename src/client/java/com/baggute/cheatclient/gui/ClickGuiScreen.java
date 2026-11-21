@@ -1949,12 +1949,7 @@ public class ClickGuiScreen extends Screen {
             selectCategory(Category.MISC); selectModule(UtilityClient.moduleManager.getByName("Appearance")); return true;
         }
         if (inRect(mx, my, footerChipX("MODULES"), fy, footerChipW("MODULES"), 16)) {
-            try {
-                java.nio.file.Path folder = com.baggute.cheatclient.module.CustomModules.directory();
-                java.nio.file.Files.createDirectories(folder);
-                java.awt.Desktop.getDesktop().open(folder.toFile());
-                Notifications.push("Add module JARs here and restart the client", true);
-            } catch (Exception failure) { Notifications.push("Module folder: " + com.baggute.cheatclient.module.CustomModules.directory(), false); }
+            net.minecraft.client.Minecraft.getInstance().gui.setScreen(new CustomModulesScreen(this));
             return true;
         }
         if (inRect(mx, my, footerChipX("PRESETS"), fy, footerChipW("PRESETS"), 16)) {

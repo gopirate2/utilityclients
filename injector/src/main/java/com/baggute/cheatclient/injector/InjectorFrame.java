@@ -370,9 +370,6 @@ final class InjectorFrame extends JFrame {
         // re-running the toggle handler that wrote that value.
         hideCapture.setSelected(CaptureHider.isEnabled());
 
-        if (jarField.getText().isBlank()) {
-            SwingUtilities.invokeLater(this::fetchClient);
-        }
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowOpened(WindowEvent event) {
@@ -380,6 +377,7 @@ final class InjectorFrame extends JFrame {
                 // handle exists. Applying here means the frame is out of the capture
                 // from its first painted pixel instead of one sweep later.
                 applyCaptureAffinity();
+                checkStartupUpdates();
             }
 
             @Override
@@ -1509,6 +1507,23 @@ final class InjectorFrame extends JFrame {
                     append("[!] " + result.message());
                     status.setText("fetch failed");
                 }
+            });
+        });
+    }
+    private void checkStartupUpdates() {
+        if(!fetching.compareAndSet(false,true))return;
+        String chosen=jarField.getText().trim();
+        repoJar.setEnabled(false);
+        append("[Update] Checking GitHub for the latest client...");
+        fetchWorker.submit(()->{
+            RemoteClient.UpdateCheck result;
+            try { result=RemoteClient.checkLatest(chosen.isBlank()?null:Path.of(chosen)); }
+            catch(RuntimeException failure) { result=new RemoteClient.UpdateCheck(false,false,"Could not check the selected client path: "+failure.getMessage(),""); }
+            RemoteClient.UpdateCheck check=result;
+            SwingUtilities.invokeLater(()->{
+                fetching.set(false);repoJar.setEnabled(true);
+                append("[Update] "+check.message());
+                if(check.available()&&!check.current())repoJar.setText("UPDATE CLIENT");
             });
         });
     }

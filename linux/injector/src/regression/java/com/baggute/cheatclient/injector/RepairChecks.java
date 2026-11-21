@@ -63,6 +63,26 @@ public final class RepairChecks {
                 zip.putNextEntry(new ZipEntry("cheatclient.jar")); zip.write(Files.readAllBytes(bare)); zip.closeEntry();
             }
             require(RemoteClient.unpackLocal(wrapper,target).equals("unpacked cheatclient.jar"), "wrapped jar installed");
+            Path platform=dir.resolve("platform.zip");
+            try(var zip=new ZipOutputStream(Files.newOutputStream(platform))) {
+                zip.putNextEntry(new ZipEntry("cheatclient.jar"));zip.write(Files.readAllBytes(bare));zip.closeEntry();
+            }
+            Path update=dir.resolve("UtilityClient-Update.zip");
+            String platformDigest=ClientIntegrity.sha256(platform);
+            try(var zip=new ZipOutputStream(Files.newOutputStream(update))) {
+                zip.putNextEntry(new ZipEntry("update.json"));
+                zip.write(("{\"schema\":1,\"repository\":\"gopirate2/utilityclients\",\"files\":{\"Payload.zip\":\""+platformDigest+"\",\"LinuxBundle.zip\":\""+platformDigest+"\"}}").getBytes(java.nio.charset.StandardCharsets.UTF_8));zip.closeEntry();
+                for(String name:java.util.List.of("Payload.zip","LinuxBundle.zip")) {zip.putNextEntry(new ZipEntry(name));zip.write(Files.readAllBytes(platform));zip.closeEntry();}
+            }
+            require(RemoteClient.unpackLocal(update,target).endsWith("/cheatclient.jar"),"complete updater package supplies the platform client");
+            require(java.util.Arrays.equals(Files.readAllBytes(bare),Files.readAllBytes(target)),"nested platform client is exact");
+            var releases=com.google.gson.JsonParser.parseString("[{\"tag_name\":\"stable\",\"name\":\"UtilityClient 1.0.0 — "+ClientIntegrity.sha256(bare).substring(0,16)+"\",\"published_at\":\"2026-11-21\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"id\":1,\"name\":\"UtilityClient-Update.zip\",\"digest\":\"sha256:"+ClientIntegrity.sha256(update)+"\"}]}]").getAsJsonArray();
+            var choose=RemoteClient.class.getDeclaredMethod("pickNewest",com.google.gson.JsonArray.class);choose.setAccessible(true);
+            Object picked=choose.invoke(null,releases);require(picked!=null,"current updater assets participate in release discovery");
+            var describe=RemoteClient.class.getDeclaredMethod("describeUpdate",picked.getClass(),Path.class);describe.setAccessible(true);
+            var check=(RemoteClient.UpdateCheck)describe.invoke(null,picked,bare);
+            require(check.current()&&check.message().contains("up to date"),"startup check recognizes exact installed version/build");
+            require(!((RemoteClient.UpdateCheck)describe.invoke(null,picked,(Path)null)).current(),"missing client receives an update offer");
             byte[] good=Files.readAllBytes(target);
             Path bad=dir.resolve("wrong.jar"); jar(bad,"wrongmod");
             try { RemoteClient.unpackLocal(bad,target); throw new AssertionError("wrong client accepted"); }

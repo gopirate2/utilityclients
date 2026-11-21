@@ -194,7 +194,7 @@ internal sealed partial class SetupForm : Form {
         layout.Controls.Add(bottom, 0, 6);
 
         LoadInventory();
-        Shown += delegate { files.ClearSelection(); ActiveControl = install; };
+        Shown += delegate { files.ClearSelection(); ActiveControl = install; CheckStartupUpdates(); };
         install.Text = File.Exists(Path.Combine(Bootstrapper.Root, "injector.jar")) ? "REPAIR" : "INSTALL";
         AddLog("LOCAL", Bootstrapper.PackageLabel + ": client, injector, and private Java 25.", Muted);
         AddLog("PATH", "Install location: " + Bootstrapper.Root, Muted);

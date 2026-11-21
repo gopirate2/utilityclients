@@ -254,6 +254,7 @@ final class InjectorFrame extends JFrame {
     private final FlatButton remove = new FlatButton("REMOVE", Kind.GHOST);
     private final FlatButton clear = new FlatButton("CLEAR", Kind.GHOST);
     private final FlatButton launchOptions = new FlatButton("LAUNCH OPTIONS", Kind.GHOST);
+    private final FlatButton startupMod = new FlatButton("INSTALL FABRIC CLIENT + BARITONE", Kind.GHOST);
     private final JLabel watchState = new JLabel();
     private LaunchSettings launchSettings = new LaunchSettings();
     private final AutoInjectController autoInject = new AutoInjectController();
@@ -369,9 +370,6 @@ final class InjectorFrame extends JFrame {
         // re-running the toggle handler that wrote that value.
         hideCapture.setSelected(CaptureHider.isEnabled());
 
-        if (jarField.getText().isBlank()) {
-            SwingUtilities.invokeLater(this::fetchClient);
-        }
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowOpened(WindowEvent event) {
@@ -379,6 +377,7 @@ final class InjectorFrame extends JFrame {
                 // handle exists. Applying here means the frame is out of the capture
                 // from its first painted pixel instead of one sweep later.
                 applyCaptureAffinity();
+                checkStartupUpdates();
             }
 
             @Override
@@ -426,6 +425,7 @@ final class InjectorFrame extends JFrame {
         remove.addActionListener(event -> removeFromMod());
         clear.addActionListener(event -> console.setText(""));
         launchOptions.addActionListener(event -> showLaunchOptions());
+        startupMod.addActionListener(event -> installStartupMod());
         browseJar.addActionListener(event -> pickFile(jarField, "Java archive", "jar"));
         repoJar.addActionListener(event -> fetchClient());
         hideCapture.addActionListener(event -> applyCaptureToggle(hideCapture.isSelected()));
@@ -933,6 +933,7 @@ final class InjectorFrame extends JFrame {
         card.add(inputRow("MODS DIR", modsField, browseMods));
         card.add(inputRow("INTO", hostCombo, null));
         card.add(inputRow("CLIENT JAR", clientField, browseClient));
+        card.add(startupMod);
         return card;
     }
 
@@ -1349,6 +1350,19 @@ final class InjectorFrame extends JFrame {
         String text = clientField.getText().trim();
         return text.isEmpty() ? null : Path.of(text);
     }
+    private void installStartupMod(){
+        Path client=selectedClient(),mods=modsFolder();
+        if(client==null||mods==null){append("[!] Select the client JAR and your Fabric profile's mods folder");return;}
+        startupMod.setEnabled(false);
+        new javax.swing.SwingWorker<Path,Void>(){
+            @Override protected Path doInBackground()throws Exception{return StartupModInstaller.install(client,mods);}
+            @Override protected void done(){
+                startupMod.setEnabled(true);
+                try{append("[+] Installed "+get()+". Restart this Fabric profile to load Baritone and its mixins.");}
+                catch(Exception failure){append("[!] Fabric installation failed: "+failure.getMessage());}
+            }
+        }.execute();
+    }
 
     private void updateModButtons() {
         Path host = selectedHost();
@@ -1493,6 +1507,23 @@ final class InjectorFrame extends JFrame {
                     append("[!] " + result.message());
                     status.setText("fetch failed");
                 }
+            });
+        });
+    }
+    private void checkStartupUpdates() {
+        if(!fetching.compareAndSet(false,true))return;
+        String chosen=jarField.getText().trim();
+        repoJar.setEnabled(false);
+        append("[Update] Checking GitHub for the latest client...");
+        fetchWorker.submit(()->{
+            RemoteClient.UpdateCheck result;
+            try { result=RemoteClient.checkLatest(chosen.isBlank()?null:Path.of(chosen)); }
+            catch(RuntimeException failure) { result=new RemoteClient.UpdateCheck(false,false,"Could not check the selected client path: "+failure.getMessage(),""); }
+            RemoteClient.UpdateCheck check=result;
+            SwingUtilities.invokeLater(()->{
+                fetching.set(false);repoJar.setEnabled(true);
+                append("[Update] "+check.message());
+                if(check.available()&&!check.current())repoJar.setText("UPDATE CLIENT");
             });
         });
     }
