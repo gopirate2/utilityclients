@@ -115,7 +115,14 @@ public final class PearlInterceptChecks {
         });
     }
     private static ClassNode read(Path root, String name) throws Exception {
-        ClassNode node = new ClassNode(); new ClassReader(Files.readAllBytes(root.resolve(name + ".class"))).accept(node, 0); return node;
+        byte[] bytes;
+        Path file = root.resolve(name + ".class");
+        if (Files.isRegularFile(file)) bytes = Files.readAllBytes(file);
+        else try (var input = PearlInterceptChecks.class.getResourceAsStream("/" + name + ".class")) {
+            if (input == null) throw new java.io.IOException("Game class is missing: " + name);
+            bytes = input.readAllBytes();
+        }
+        ClassNode node = new ClassNode(); new ClassReader(bytes).accept(node, 0); return node;
     }
     private static void require(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
 }

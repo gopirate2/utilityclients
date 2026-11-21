@@ -37,6 +37,7 @@ public final class ExtensionsThemeChecks {
         Path classes = root.resolve("classes"); Files.createDirectories(classes);
         Path source = root.resolve("HelloProvider.java");
         try (var input = ExtensionsThemeChecks.class.getResourceAsStream("/module-sdk/example/src/example/HelloProvider.java")) { Files.copy(Objects.requireNonNull(input), source); }
+        if (System.getProperty("uc.regression.classRoot") != null) {
         String production = Arrays.stream(System.getProperty("java.class.path").split(java.io.File.pathSeparator))
                 .filter(s -> s.contains("activation-") && s.endsWith("-classes.jar")).findFirst().orElseThrow();
         Path classRoot = Path.of(System.getProperty("uc.regression.classRoot"));
@@ -49,6 +50,17 @@ public final class ExtensionsThemeChecks {
                 classRoot.getParent().resolve("class-index.txt").toString(), buildArgs.toString(), deps.toString()).redirectErrorStream(true).start();
         if (!compiler.waitFor(60, java.util.concurrent.TimeUnit.SECONDS)) { compiler.destroyForcibly(); throw new AssertionError("SDK compilation timed out"); }
         require(compiler.exitValue() == 0, "shipped SDK example compiles: " + new String(compiler.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+        } else {
+            var compiler = javax.tools.ToolProvider.getSystemJavaCompiler();
+            require(compiler != null, "SDK compilation requires a JDK");
+            var diagnostics = new java.io.StringWriter();
+            try (var files = compiler.getStandardFileManager(null, null, java.nio.charset.StandardCharsets.UTF_8)) {
+                boolean compiled = compiler.getTask(diagnostics, files, null,
+                        List.of("--release", "25", "-classpath", System.getProperty("java.class.path"), "-d", classes.toString()),
+                        null, files.getJavaFileObjects(source.toFile())).call();
+                require(compiled, "shipped SDK example compiles: " + diagnostics);
+            }
+        }
         Path jars = root.resolve("jars"); Files.createDirectories(jars);
         try (JarOutputStream jar = new JarOutputStream(Files.newOutputStream(jars.resolve("01-example.jar")))) {
             try (var files = Files.walk(classes)) {
