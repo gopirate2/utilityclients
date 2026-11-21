@@ -25,6 +25,8 @@ public abstract class Module {
     public String getName() { return name; }
     public String getDescription() { return description; }
     public Category getCategory() { return category; }
+    /** Command services and theme preferences are not module-list entries. */
+    public boolean isListed() { return !name.equals("Appearance") && !name.equals("SeedCrackerX"); }
     public boolean isEnabled() { return enabled; }
     public List<Setting> getSettings() { return settings; }
 

@@ -24,6 +24,7 @@ public final class IndicatorExtractor {
         HealthIndicators h = (HealthIndicators) UtilityClient.moduleManager.getByName("HealthIndicators");
         ArmorIndicators a = (ArmorIndicators) UtilityClient.moduleManager.getByName("ArmorIndicators");
         Vec3 cam = state.cameraRenderState.pos;
+        float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
 
         // distanceToSqr() is squared, so the limit has to be squared as well.
         double maxRangeSq = maxRangeSq(h, a);
@@ -33,16 +34,17 @@ public final class IndicatorExtractor {
             double distSq = e.distanceToSqr(cam);
             if (distSq > maxRangeSq) continue;
 
-            double y = le.getY() + le.getBbHeight() + 0.15;
+            Vec3 position = le.getPosition(partialTick);
+            double y = position.y + le.getBbHeight() + 0.15;
 
-            if (h != null && h.isEnabled() && distSq <= h.getRange() * h.getRange()) {
-                hearts(new Vec3(le.getX(), y + .6, le.getZ()), state.cameraRenderState.orientation,
+            if (h != null && h.isEnabled() && (!h.playersOnly.get() || le instanceof Player) && distSq <= h.getRange() * h.getRange()) {
+                hearts(new Vec3(position.x, y + .6, position.z), state.cameraRenderState.orientation,
                         le.getHealth(), le.getMaxHealth(), le.getAbsorptionAmount(), h.getScale(), h.getColor());
             }
 
-            if (a != null && a.isEnabled() && le instanceof Player p && distSq <= a.getRange() * a.getRange()) {
-                icons(new Vec3(le.getX(), y + .2, le.getZ()), state.cameraRenderState.orientation,
-                        p.getArmorValue(), 20, 0, a.getScale(), a.getColor(), ARMOR);
+            if (a != null && a.isEnabled() && (!a.playersOnly.get() || le instanceof Player) && distSq <= a.getRange() * a.getRange()) {
+                icons(new Vec3(position.x, y + .2, position.z), state.cameraRenderState.orientation,
+                        le.getArmorValue(), 20, 0, a.getScale(), a.getColor(), ARMOR);
             }
         }
     }

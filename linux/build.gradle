@@ -24,7 +24,7 @@ loom {
 }
 
 dependencies {
-	include implementation("bundled:baritone-unoptimized-fabric:1.19.0") { transitive = false }
+	implementation("bundled:baritone-unoptimized-fabric:1.19.0") { transitive = false }
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
@@ -148,6 +148,12 @@ tasks.register('releaseZip', Zip) {
 
 ext.utilityClientLinuxBundle = true
 apply from: 'dist/bundle-checksums.gradle'
+tasks.named('processClientResources') {
+    def clientVersion = project.version.toString()
+    from('vendor/baritone-unoptimized-fabric-1.19.0.jar') { into 'sideload'; rename { 'baritone.jar' } }
+    inputs.property 'clientVersion', clientVersion
+    filesMatching('fabric.mod.json') { expand 'version': clientVersion }
+}
 
 publishing {
 	publications {

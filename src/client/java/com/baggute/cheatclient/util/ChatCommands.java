@@ -52,6 +52,9 @@ public final class ChatCommands {
         switch (root) {
             case "version", "ver" -> printVersion();
             case "lookup" -> LookupCommand.run(parts);
+            case "uuid" -> InventoryCommands.uuid(parts);
+            case "drop" -> InventoryCommands.drop(parts);
+            case "potion" -> com.baggute.cheatclient.gui.PotionRecipeScreen.open(parts);
             default -> say("unknown command: ." + root + FALLBACK_HINT, ChatFormatting.GRAY);
         }
         return true;

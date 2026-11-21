@@ -57,13 +57,14 @@ public final class AutoInstacart extends Module {
     private static final int PLACE_RAIL = 2;
     private static final int SWAP_CART = 3;
     private static final int PLACE_CART = 4;
+    private static final int SHOT_DELAY = 5;
+    private final com.baggute.cheatclient.settings.IntSetting shotDelay = new com.baggute.cheatclient.settings.IntSetting("shotDelay", "Ticks after releasing the bow before choosing the placement target", 4, 1, 20);
 
     private final BoolSetting autoSwap =
             new BoolSetting("autoSwap", "Switch to the rail and the cart automatically", true);
     private final BoolSetting chatFeedback =
             new BoolSetting("sendChatFeedback", "Send Chat Feedback: show automatic feedback in local chat", false);
 
-    private boolean drawing;
     private net.minecraft.client.player.LocalPlayer owner;
     private int selectedSlot = -1;
     private int stage = IDLE;
@@ -82,6 +83,7 @@ public final class AutoInstacart extends Module {
                 Category.COMBAT);
         addSetting(autoSwap);
         addSetting(chatFeedback);
+        addSetting(shotDelay);
     }
 
     @Override
@@ -101,27 +103,20 @@ public final class AutoInstacart extends Module {
         }
 
         owner = mc.player;
-        boolean use = mc.options.keyUse.isDown();
         if (stage != IDLE && mc.player.getInventory().getSelectedSlot() != selectedSlot) {
             abort(mc, "selected slot changed mid-cycle"); return;
         }
 
         if (stage == IDLE) {
-            if (use && mc.player.isUsingItem() && ModuleUtils.isPlainBow(mc.player.getUseItem())) {
-                drawing = true;
-            } else if (!use && drawing) {
-                // The release is the trigger. Everything the cycle will spend is
-                // checked here, before the first packet, so an incomplete kit costs
-                // nothing but one chat line.
-                drawing = false;
-                begin(mc);
-            } else if (!ModuleUtils.isPlainBow(mc.player.getMainHandItem()) || !mc.player.isUsingItem()) {
-                drawing = false;
-            }
             return;
         }
 
         if (++cycleTicks > 100) { abort(mc, "cycle timed out"); return; }
+        if (stage == SHOT_DELAY) {
+            if (cycleTicks < shotDelay.get()) return;
+            begin(mc);
+            return;
+        }
         if (stage == SWAP_RAIL) {
             // Re-scanned every cycle rather than trusted from the trigger: the slot
             // can be stale after a drop, a break, or a container move inside the
@@ -156,7 +151,7 @@ public final class AutoInstacart extends Module {
                 abort(mc, "crosshair is not on a block");
                 return;
             }
-            Placement.Result result = Placement.useOn(mc, ITEM_RAIL, target);
+            Placement.Result result = Placement.useOnSilent(mc, ITEM_RAIL, target);
             if (result == Placement.Result.WAITING) return;
             if (result == Placement.Result.MISSING) {
                 abort(mc, "Missing item: " + ITEM_RAIL);
@@ -200,7 +195,7 @@ public final class AutoInstacart extends Module {
                 abort(mc, "rail position lost before the cart");
                 return;
             }
-            Placement.Result result = Placement.useOn(mc, ITEM_CART, railPos);
+            Placement.Result result = Placement.useOnSilent(mc, ITEM_CART, railPos);
             if (result == Placement.Result.WAITING) return;
             if (result == Placement.Result.MISSING) {
                 abort(mc, "Missing item: " + ITEM_CART);
@@ -215,6 +210,18 @@ public final class AutoInstacart extends Module {
     }
 
     // ---- kit ----
+    public void onBowReleased(net.minecraft.world.entity.player.Player player) {
+        Minecraft mc = Minecraft.getInstance();
+        if (!isEnabled() || stage != IDLE || mc.player != player || mc.gui.screen() != null
+                || !ModuleUtils.isPlainBow(player.getUseItem())) return;
+        // A partial draw qualifies as soon as vanilla can produce an arrow.
+        if (net.minecraft.world.item.BowItem.getPowerForTime(player.getTicksUsingItem()) < 0.1f
+                || (!player.isCreative() && player.getProjectile(player.getUseItem()).isEmpty())) return;
+        owner = mc.player;
+        oldSlot = selectedSlot = mc.player.getInventory().getSelectedSlot();
+        cycleTicks = 0;
+        stage = SHOT_DELAY;
+    }
 
     /**
      * Scans the hotbar and arms the cycle, or prints what is missing and stays idle.
@@ -314,7 +321,6 @@ public final class AutoInstacart extends Module {
         }
         owner = null;
         selectedSlot = -1;
-        drawing = false;
         supportPos = null;
         cycleTicks = 0;
         stage = IDLE;

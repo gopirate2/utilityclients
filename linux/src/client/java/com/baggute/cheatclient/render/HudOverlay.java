@@ -291,6 +291,7 @@ public final class HudOverlay {
 
         for (Hud.Widget widget : Hud.Widget.values()) {
             if (!hud.isWidgetEnabled(widget)) continue;
+            if(widget==Hud.Widget.POTIONS_COUNTER){paintPotionCounter(g,metrics,mc,hud,guiScale);continue;}
             List<String> lines = HudRenderer.widgetLines(widget, mc, hud);
             if (lines.isEmpty()) continue;
 
@@ -346,6 +347,33 @@ public final class HudOverlay {
         g.scale(scale, scale);
         g.drawString(text, 0, metrics.getAscent());
         g.setTransform(old);
+    }
+    private static void paintPotionCounter(Graphics2D g,FontMetrics metrics,net.minecraft.client.Minecraft mc,Hud hud,double guiScale){
+        var widget=Hud.Widget.POTIONS_COUNTER;var rows=HudRenderer.potionCounts(mc,hud);
+        double originScale=guiScale*hud.getScale(),scale=originScale*hud.getWidgetScale(widget);
+        int x=(int)Math.round(hud.getX(widget)*originScale),y=(int)Math.round(hud.getY(widget)*originScale);
+        int rowWidth=rows.isEmpty()?metrics.stringWidth("potions: 0"):40,rowHeight=Math.max(1,rows.size())*20;
+        rectangles.add(new int[]{Math.max(0,x-3),Math.max(0,y-3),Math.min(width,x+(int)Math.ceil(rowWidth*scale)+3),Math.min(height,y+(int)Math.ceil(rowHeight*scale)+3)});
+        var old=g.getTransform();
+        try{
+            g.translate(x,y);g.scale(scale,scale);
+            if(hud.hasWidgetBackground(widget)){g.setColor(new Color(0x80000000,true));g.fillRect(-3,-3,rowWidth+6,rowHeight+4);}
+            if(rows.isEmpty()){g.setColor(new Color(hud.getWidgetColor(widget),true));g.drawString("potions: 0",0,metrics.getAscent());}
+            for(int i=0;i<rows.size();i++){
+                var row=rows.get(i);int top=i*20;var contents=row.icon().get(net.minecraft.core.component.DataComponents.POTION_CONTENTS);
+                int tint=contents==null?0x7755CC:contents.getColor();
+                g.setColor(new Color(0xDCE8F8));g.fillRoundRect(2,top+6,12,10,4,4);g.fillRect(6,top+2,4,6);
+                g.setColor(new Color(tint));g.fillRoundRect(4,top+9,8,5,3,3);
+                g.setColor(new Color(0xB08A58));g.fillRect(5,top,6,3);
+                if(row.icon().is(net.minecraft.world.item.Items.SPLASH_POTION)){g.setColor(Color.WHITE);g.drawLine(10,top+2,14,top+4);}
+                if(row.icon().is(net.minecraft.world.item.Items.LINGERING_POTION)){g.setColor(new Color(tint));g.drawOval(0,top+15,16,3);}
+                String level=Integer.toString(row.level());
+                g.setColor(new Color(0xB0000000,true));g.fillRect(15-metrics.stringWidth(level),top+6,metrics.stringWidth(level)+2,11);
+                g.setColor(Color.WHITE);g.drawString(level,16-metrics.stringWidth(level),top+15);
+                g.setColor(new Color(hud.getWidgetColor(widget),true));g.drawString(Integer.toString(row.count()),20,top+metrics.getAscent()+2);
+            }
+        }finally{g.setTransform(old);}
+        hud.setBounds(widget,hud.getX(widget),hud.getY(widget),(int)Math.ceil(rowWidth*hud.getWidgetScale(widget)),(int)Math.ceil(rowHeight*hud.getWidgetScale(widget)));
     }
 
     private static void paintArrayList(Graphics2D g, FontMetrics metrics,

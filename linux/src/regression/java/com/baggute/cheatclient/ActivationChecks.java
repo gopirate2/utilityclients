@@ -69,7 +69,7 @@ public final class ActivationChecks {
         try {
             setup(); catalog(); bindingFailures(); sharedTick(); crossbow(); bucketRepairs(); lunge(); pearlSpeed(false, 0); pearlSpeed(true, 0); pearlSpeed(false, 4);
             manualPearlSpeed(false, true); manualPearlSpeed(true, false); rejectedPearls(); atomicItemUse();
-            timingAndPriority(); quietFeedback(); missControls(); livePearls(); apexSequences(); delegates(); combatRepairs(); hud(); panic();
+            timingAndPriority(); quietFeedback(); missControls(); livePearls(); apexSequences(); delegates(); combatRepairs(); requestedRepairs(); hud(); panic();
             System.out.println("PASS: action press/repeat/release, failure isolation, duplicate bindings, shared tick, AutoXbow arming/charging, Lunge III stab/return, fast pearl packet aim, own/foreign pearl tracking, offhand timing, Apex sequence/delegate cleanup and HUD preview");
         } finally {
             field(Minecraft.class, "instance").set(null, oldGame);
@@ -227,8 +227,8 @@ public final class ActivationChecks {
         ItemStack spear = new ItemStack(Items.DIAMOND_SPEAR); spear.enchant(enchantment, 3); player.inventory.setItem(1, spear);
         LateBridge.onKeyPress(new KeyEvent(89, 0, 0), GLFW.GLFW_PRESS);
         require(field(LungeSwap.class, "pending").getBoolean(module), "Lunge key arms with genuine Lunge III item");
-        tick(manager); tick(manager); require(mode.stabs == 0 && player.inventory.getSelectedSlot() == 1, "spear equip has its own tick");
-        tick(manager); require(mode.stabs == 1 && player.inventory.getSelectedSlot() == 1, "charged spear stabs after equip tick");
+        tick(manager); require(mode.stabs == 0 && player.inventory.getSelectedSlot() == 0, "charge is acquired with fast-hand attributes");
+        tick(manager); require(mode.stabs == 1 && player.inventory.getSelectedSlot() == 1, "ready fast hand swaps and stabs before the spear cooldown takes over");
         tick(manager); require(player.inventory.getSelectedSlot() == 0, "fast hand restored");
         ItemStack weaker = new ItemStack(Items.DIAMOND_SPEAR); weaker.enchant(enchantment, 2); player.inventory.setItem(1, weaker);
         require(!module.arm(game), "saved Lunge III minimum rejects Lunge II");
@@ -577,9 +577,16 @@ public final class ActivationChecks {
                 &&menu.getCarried().isEmpty(),"AutoTotem uses one direct offhand swap without a cursor exchange");
         totem.setEnabled(false);manager.getModules().clear();
         var detector=new com.baggute.cheatclient.module.misc.GamemodeDetector();manager.getModules().add(detector);
-        ((BoolSetting)detector.getSettings().stream().filter(v->v.getName().equals("disableOnChange")).findFirst().orElseThrow()).set(false);detector.setEnabled(true);
+        detector.setEnabled(true);
         mode.playerMode=GameType.CREATIVE;tick(manager);
-        require(com.baggute.cheatclient.module.misc.GamemodeDetector.currentAlert().contains("Creative"),"self gamemode detection works without tab entries or chat feedback");
+        require(com.baggute.cheatclient.module.misc.GamemodeDetector.currentAlert()==null,"own gamemode changes are ignored");
+        var info=allocate(PlayerInfo.class);
+        field(PlayerInfo.class,"profile").set(info,new com.mojang.authlib.GameProfile(UUID.randomUUID(),"OtherPlayer"));
+        field(PlayerInfo.class,"gameMode").set(info,GameType.SURVIVAL);
+        ((Link)player.connection).online=List.of(info);tick(manager);
+        require(com.baggute.cheatclient.module.misc.GamemodeDetector.currentAlert()==null,"first sighting seeds the other player's mode");
+        field(PlayerInfo.class,"gameMode").set(info,GameType.CREATIVE);tick(manager);
+        require(com.baggute.cheatclient.module.misc.GamemodeDetector.currentAlert().contains("OtherPlayer"),"other player's mode change is reported");
         detector.setEnabled(false);manager.getModules().clear();
         require(com.baggute.cheatclient.util.LookupCommand.operatorStatus(game,victim).startsWith("unknown"),"remote operator status cannot become a false negative");
         var zoom=new com.baggute.cheatclient.module.player.Zoom();manager.getModules().add(zoom);zoom.setEnabled(true);
@@ -596,6 +603,77 @@ public final class ActivationChecks {
         var potions=HudRenderer.potionCounts(game,hud);
         require(potions.size()==2&&potions.getFirst().count()==2&&potions.getLast().icon().is(Items.SPLASH_POTION),"potion icons keep bottle types separate and sum counts");
         System.out.println("PASS: real mace/breach/shield combo hits, silent camera/packet order, AntiMiss input, local Reach, shield clicking, solid-only mining, pre-movement jump, attack-driven W-tap, moving bow prediction and frame-independent aim");
+    }
+
+    private static void requestedRepairs() throws Exception {
+        setup(); ModuleManager manager = new ModuleManager(); UtilityClient.moduleManager = manager;
+        manager.init();
+        require(manager.getByName("Baritone")==null, "Baritone is not a client module");
+        require(manager.getVisibleModules().stream().noneMatch(m->m.getName().equals("Appearance")||m.getName().equals("SeedCrackerX")), "themes and command services are absent from module lists");
+        var health=new com.baggute.cheatclient.module.render.HealthIndicators();
+        var armor=new com.baggute.cheatclient.module.render.ArmorIndicators();
+        require(health.playersOnly.get()&&armor.playersOnly.get(), "indicators default to players only");
+        require(armor.getSettings().contains(armor.playersOnly), "armor mob option is configurable");
+        var contents=net.minecraft.world.item.alchemy.PotionContents.class;
+        ItemStack strength=new ItemStack(Items.POTION), strong=new ItemStack(Items.POTION);
+        strength.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.STRENGTH));
+        strong.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.STRONG_STRENGTH));
+        player.inventory.setItem(0,strength);player.inventory.setItem(1,strong);
+        var rows=HudRenderer.potionCounts(game,new Hud());
+        require(rows.size()==2&&rows.get(0).level()==1&&rows.get(1).level()==2, "strength I and II remain separate and carry numeric icon levels");
+        var recipe=com.baggute.cheatclient.gui.PotionRecipeScreen.recipe("str");
+        require(recipe.ingredients().equals(List.of(Items.NETHER_WART,Items.BLAZE_POWDER))&&recipe.extended().equals("8:00")&&recipe.strong().equals("1:30"), "strength guide includes real ingredient order and extended/strong variants");
+        require(com.baggute.cheatclient.gui.PotionRecipeScreen.recipe("invis").ingredients().getLast()==Items.FERMENTED_SPIDER_EYE, "invisibility corrupts night vision");
+        require(com.baggute.cheatclient.gui.PotionRecipeScreen.recipe("weakness").ingredients().equals(List.of(Items.FERMENTED_SPIDER_EYE)), "weakness starts from water without nether wart");
+
+        setup();manager=new ModuleManager();UtilityClient.moduleManager=manager;
+        var menu=allocate(net.minecraft.world.inventory.InventoryMenu.class);menu.setCarried(ItemStack.EMPTY);
+        var slots=net.minecraft.core.NonNullList.<net.minecraft.world.inventory.Slot>create();var container=new net.minecraft.world.SimpleContainer(46);
+        for(int i=0;i<46;i++)slots.add(new net.minecraft.world.inventory.Slot(container,i,0,0));
+        field(net.minecraft.world.inventory.AbstractContainerMenu.class,"slots").set(menu,slots);
+        field(Player.class,"inventoryMenu").set(player,menu);player.containerMenu=menu;
+        player.inventory.setItem(0,new ItemStack(Items.STONE,64));player.inventory.setItem(1,new ItemStack(Items.STONE,64));
+        com.baggute.cheatclient.util.InventoryCommands.drop(new String[]{".drop","100","stone"});
+        for(int i=0;i<40;i++)tick(manager);
+        require(player.inventory.getItem(0).isEmpty()&&player.inventory.getItem(1).getCount()==28, "drop 100 spends exactly 100 across stacks");
+        com.baggute.cheatclient.util.InventoryCommands.drop(new String[]{".drop","all","stone"});
+        tick(manager);tick(manager); require(player.inventory.getItem(1).isEmpty(), "drop all removes the remaining matching item");
+        var kit=com.google.gson.JsonParser.parseString("{\"slots\":[{\"slot\":0,\"itemId\":\"minecraft:stone\",\"count\":12}]}").getAsJsonObject();
+        player.creative=true;player.inventory.setItem(1,new ItemStack(Items.DIAMOND));
+        require(com.baggute.cheatclient.config.KitManager.apply(game,kit)==0&&player.inventory.getItem(0).getCount()==12&&player.inventory.getItem(1).isEmpty(), "creative kit replaces contents and clears unspecified slots");
+        player.creative=false;player.inventory.setItem(1,new ItemStack(Items.DIAMOND));
+        require(com.baggute.cheatclient.config.KitManager.apply(game,kit)==-1&&player.inventory.getItem(1).is(Items.DIAMOND), "remote survival cannot create a fake kit");
+
+        setup();manager=new ModuleManager();UtilityClient.moduleManager=manager;
+        var cart=new AutoInstacart();manager.getModules().add(cart);cart.setEnabled(true);
+        player.using=new ItemStack(Items.BOW);player.useTicks=3;
+        player.inventory.setItem(1,new ItemStack(Items.RAIL));player.inventory.setItem(2,new ItemStack(Items.TNT_MINECART));
+        player.setXRot(-20);cart.onBowReleased(player);player.using=null;
+        tick(manager);tick(manager);tick(manager);
+        require(field(AutoInstacart.class,"stage").getInt(cart)==5&&player.getXRot()==-20, "partial bow shot starts the camera-free placement delay");
+        BlockPos support=new BlockPos(0,63,2);game.hitResult=new BlockHitResult(Vec3.atCenterOf(support),Direction.UP,support,false);
+        player.setXRot(65);tick(manager);
+        require(support.equals(field(AutoInstacart.class,"supportPos").get(cart))&&player.getXRot()==65, "cart target is captured after the player looks down");cart.setEnabled(false);
+        setup();manager=new ModuleManager();UtilityClient.moduleManager=manager;
+        var options=allocate(net.minecraft.client.Options.class);field(Minecraft.class,"options").set(game,options);
+        for(String key:List.of("keyLeft","keyRight","keyUp","keyDown","keyJump","keyShift")) field(net.minecraft.client.Options.class,key).set(options,allocate(net.minecraft.client.KeyMapping.class));
+        var flight=new com.baggute.cheatclient.module.movement.Flight();flight.setEnabled(true);
+        flight.onTick();require(player.motion.y==0&&player.noGravity,"neutral flight suspends gravity without passive ascent");
+        options.keyJump.setDown(true);flight.onTick();require(player.motion.y>0,"flight ascends only on jump input");
+        options.keyJump.setDown(false);options.keyShift.setDown(true);flight.onTick();require(player.motion.y<0,"flight descends on shift input");
+        flight.setEnabled(false);require(!player.noGravity,"flight restores original gravity on disable");
+
+        setup();manager=new ModuleManager();UtilityClient.moduleManager=manager;
+        var alien=new ApexModule("AutoAlienWC","Fixture");manager.getModules().add(alien);alien.setEnabled(true);
+        player.inventory.setItem(1,new ItemStack(Items.WIND_CHARGE));player.motion=new Vec3(0,-.5,0);player.setYRot(35);player.setXRot(-15);
+        tick(manager);require(USES.isEmpty(),"AutoAlienWC requires equipped elytra and gliding");
+        player.chest=new ItemStack(Items.ELYTRA);player.gliding=true;player.motion=new Vec3(0,.5,0);
+        tick(manager);require(USES.isEmpty(),"AutoAlienWC cannot throw while rising");
+        player.motion=new Vec3(0,-.5,0);tick(manager);
+        require(USES.size()==1&&USES.getFirst().pitch==90&&player.getXRot()==90,"falling glider snaps down for one wind-charge throw");
+        tick(manager);require(player.getXRot()==-15&&player.getYRot()==35,"AutoAlienWC restores the original view on the next tick");
+        alien.setEnabled(false);
+        System.out.println("PASS: separate Baritone, hidden command/theme entries, numeric potion levels, brewing recipes, exact drop quantities, forced creative kits, delayed partial-draw carts, neutral flight and elytra-only wind-charge view restoration");
     }
 
     private static void hud() throws Exception {
@@ -658,8 +736,8 @@ public final class ActivationChecks {
         @Override public void handleSystemMessage(Component component, boolean overlay) { gui.messages.add(component.getString()); }
     }
     private static final class Hand extends LocalPlayer {
-        Inventory inventory; ItemStack offhand, using; Vec3 motion; ItemCooldowns cooldowns;
-        float health=20, charge=1; boolean sprint,ammo; int jumps,useTicks;
+        Inventory inventory; ItemStack offhand, using, chest; Vec3 motion; ItemCooldowns cooldowns;
+        float health=20, charge=1; boolean sprint,ammo,creative,noGravity,gliding; int jumps,useTicks;
         private Hand() { super(null, null, null, null, null, null, false, null); }
         @Override public Inventory getInventory() { return inventory; }
         @Override public BlockPos blockPosition() { return BlockPos.containing(position()); }
@@ -668,6 +746,12 @@ public final class ActivationChecks {
         @Override public ItemStack getOffhandItem() { return offhand; }
         @Override public ItemStack getItemInHand(InteractionHand hand) { return hand == InteractionHand.MAIN_HAND ? getMainHandItem() : offhand; }
         @Override public boolean isAlive() { return true; }
+        @Override public boolean isCreative() { return creative; }
+        @Override public ItemStack getItemBySlot(net.minecraft.world.entity.EquipmentSlot slot) { return slot==net.minecraft.world.entity.EquipmentSlot.CHEST ? (chest==null?ItemStack.EMPTY:chest) : super.getItemBySlot(slot); }
+        @Override public boolean isNoGravity() { return noGravity; }
+        @Override public void setNoGravity(boolean value) { noGravity=value; }
+        @Override public boolean isFallFlying() { return gliding; }
+        @Override public void setDeltaMovement(Vec3 value) { motion=value; }
         @Override public float getHealth() { return health == 0 ? 20 : health; }
         @Override public float getAbsorptionAmount() { return 0; }
         @Override public boolean isSleeping() { return false; }
@@ -686,6 +770,7 @@ public final class ActivationChecks {
         @Override public boolean isSpectator() { return false; }
         @Override public boolean isShiftKeyDown() { return false; }
         @Override public boolean onGround() { return true; }
+        @Override public void setOnGround(boolean value) {}
         @Override public boolean isUsingItem() { return using != null; }
         @Override public ItemStack getUseItem() { return using == null ? ItemStack.EMPTY : using; }
         @Override public Vec3 getDeltaMovement() { return motion; }
@@ -717,9 +802,10 @@ public final class ActivationChecks {
     }
     private static final class Link extends ClientPacketListener {
         List<Packet<?>> packets;
+        Collection<PlayerInfo> online;
         private Link() { super(null, null, null); }
         @Override public void send(Packet<?> packet) { packets.add(packet); }
-        @Override public Collection<PlayerInfo> getOnlinePlayers(){return List.of();}
+        @Override public Collection<PlayerInfo> getOnlinePlayers(){return online==null?List.of():online;}
     }
     private static final class Mode extends MultiPlayerGameMode {
         Game game; int stabs, attacks; boolean consumePearl; InteractionResult itemResult;
@@ -738,7 +824,15 @@ public final class ActivationChecks {
         @Override public void releaseUsingItem(Player user) { player.using = null; }
         @Override public void piercingAttack(PiercingWeapon weapon) { stabs++; }
         @Override public GameType getPlayerMode(){return playerMode==null?GameType.SURVIVAL:playerMode;}
-        @Override public void handleContainerInput(int container,int slot,int button,net.minecraft.world.inventory.ContainerInput input,Player user){inventoryClicks++;lastSlot=slot;lastButton=button;lastInput=input;}
+        @Override public void handleContainerInput(int container,int slot,int button,net.minecraft.world.inventory.ContainerInput input,Player user){
+            inventoryClicks++;lastSlot=slot;lastButton=button;lastInput=input;
+            if(input==net.minecraft.world.inventory.ContainerInput.THROW){
+                int inventory=slot>=36&&slot<=44?slot-36:slot==45?40:slot>=5&&slot<=8?44-slot:slot;
+                ItemStack stack=user.getInventory().getItem(inventory);
+                stack.shrink(button==1?stack.getCount():1);
+            }
+        }
+        @Override public void handleCreativeModeItemAdd(ItemStack stack,int slot) {}
         @Override public void attack(Player user, Entity target) {
             attacks++; if(attackSlots==null) attackSlots=new ArrayList<>(); attackSlots.add(user.getInventory().getSelectedSlot());
             packetsAtAttack=((Link)player.connection).packets.size(); GameplayHooks.afterAttack(user,target);

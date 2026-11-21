@@ -367,6 +367,9 @@ public final class HudOverlay {
                 g.setColor(new Color(0xB08A58));g.fillRect(5,top,6,3);
                 if(row.icon().is(net.minecraft.world.item.Items.SPLASH_POTION)){g.setColor(Color.WHITE);g.drawLine(10,top+2,14,top+4);}
                 if(row.icon().is(net.minecraft.world.item.Items.LINGERING_POTION)){g.setColor(new Color(tint));g.drawOval(0,top+15,16,3);}
+                String level=Integer.toString(row.level());
+                g.setColor(new Color(0xB0000000,true));g.fillRect(15-metrics.stringWidth(level),top+6,metrics.stringWidth(level)+2,11);
+                g.setColor(Color.WHITE);g.drawString(level,16-metrics.stringWidth(level),top+15);
                 g.setColor(new Color(hud.getWidgetColor(widget),true));g.drawString(Integer.toString(row.count()),20,top+metrics.getAscent()+2);
             }
         }finally{g.setTransform(old);}

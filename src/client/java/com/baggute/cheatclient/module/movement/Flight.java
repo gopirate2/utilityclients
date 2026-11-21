@@ -54,6 +54,12 @@ public class Flight extends Module {
     private static final double SINK_PER_SECOND = 0.001;
     private static final long SINK_INTERVAL_MS = 1000L;
     private long lastSinkAt;
+    private net.minecraft.client.player.LocalPlayer gravityOwner;
+    private boolean originalNoGravity;
+    private void restoreGravity() {
+        if (gravityOwner != null) gravityOwner.setNoGravity(originalNoGravity);
+        gravityOwner = null;
+    }
 
     public Flight() {
         super("Flight", "Fly freely through the world.", Category.MOVEMENT);
@@ -68,11 +74,13 @@ public class Flight extends Module {
     @Override
     public void onTick() {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.level == null) { restoreAbilities(mc); return; }
+        if (mc.player == null || mc.level == null) { restoreAbilities(mc); restoreGravity(); return; }
 
         boolean creative = mc.player.isCreative() || mc.player.isSpectator();
-        if (creative) { applyAbilities(mc); return; }
+        if (creative) { restoreGravity(); applyAbilities(mc); return; }
         restoreAbilities(mc);
+        if (gravityOwner != mc.player) { restoreGravity(); gravityOwner = mc.player; originalNoGravity = mc.player.isNoGravity(); }
+        mc.player.setNoGravity(true);
 
         // strafe: LEFT = +1, RIGHT = -1 (matches vanilla Entity.getInputVector input.x)
         double strafe = 0, forward = 0, vertical = 0;
@@ -107,10 +115,8 @@ public class Flight extends Module {
         boolean hovering = verticalFly.get() && Math.abs(vertical) < 0.001;
         double dy;
         if (hovering) {
-            // Hover: the next movement tick subtracts gravity before moving, so
-            // writing 0 here made the player sink. Cancel that gravity instead.
-            dy = mc.player.getAttributeValue(
-                    net.minecraft.world.entity.ai.attributes.Attributes.GRAVITY);
+            // Gravity is suspended while we own flight; neutral input hovers.
+            dy = 0;
         } else {
             dy = vertical * perTick;
         }
@@ -149,6 +155,7 @@ public class Flight extends Module {
     protected void onDisable() {
         Minecraft mc = Minecraft.getInstance();
         restoreAbilities(mc);
+        restoreGravity();
         UtilityClient.LOGGER.info("[Flight] disabled");
     }
 }

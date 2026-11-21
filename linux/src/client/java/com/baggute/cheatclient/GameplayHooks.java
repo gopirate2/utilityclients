@@ -110,6 +110,8 @@ public final class GameplayHooks {
     }
     public static Object beginBowRelease(Object player) {
         if (UtilityClient.isUnloaded() || UtilityClient.moduleManager == null || !(player instanceof Player p)) return null;
+        var cart = UtilityClient.moduleManager.getByName("AutoInstacart");
+        if (cart instanceof com.baggute.cheatclient.module.combat.AutoInstacart instacart) instacart.onBowReleased(p);
         var module = UtilityClient.moduleManager.getByName("BowAimbot");
         return module instanceof com.baggute.cheatclient.module.combat.BowAimbot bow ? bow.beginRelease(p) : null;
     }

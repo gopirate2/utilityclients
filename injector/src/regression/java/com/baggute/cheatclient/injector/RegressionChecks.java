@@ -92,6 +92,19 @@ public final class RegressionChecks {
             byte[] unrelated=java.nio.file.Files.readAllBytes(mods.resolve("utilityclient.jar"));
             try{StartupModInstaller.install(source,mods);throw new AssertionError("unrelated overwritten");}catch(IOException expected){}
             require(java.util.Arrays.equals(unrelated,java.nio.file.Files.readAllBytes(mods.resolve("utilityclient.jar"))),"unrelated mod preserved");
+            Path sideMods=java.nio.file.Files.createDirectory(root.resolve("side-mods"));
+            Path baritone=root.resolve("baritone.jar");modJar(baritone,"baritone","standalone");
+            modJarWithBaritone(source,baritone);
+            StartupModInstaller.install(source,sideMods);
+            Path side=sideMods.resolve("baritone-utilityclient.jar");
+            require(java.nio.file.Files.mismatch(baritone,side)==-1,"Baritone installed as a separate verified Fabric JAR");
+            byte[] originalBaritone=java.nio.file.Files.readAllBytes(side);
+            modJar(baritone,"baritone","new-bundled-version");modJarWithBaritone(source,baritone);
+            StartupModInstaller.install(source,sideMods);
+            require(java.util.Arrays.equals(originalBaritone,java.nio.file.Files.readAllBytes(side)),"existing standalone Baritone preserved without duplicates");
+            java.nio.file.Files.delete(side);modJar(baritone,"othermod","wrong");modJarWithBaritone(source,baritone);
+            try{StartupModInstaller.install(source,sideMods);throw new AssertionError("wrong side-load mod accepted");}catch(IOException expected){}
+            require(!java.nio.file.Files.exists(side),"wrong Baritone side-load cannot leave a destination JAR");
             System.out.println("PASS: startup Fabric install, verified replacement, backup, duplicate and unrelated-mod guards");
         }finally{
             if(previous==null)System.clearProperty("utilityclient.injectorRoot");else System.setProperty("utilityclient.injectorRoot",previous);
@@ -102,6 +115,12 @@ public final class RegressionChecks {
             zip.putNextEntry(new java.util.zip.ZipEntry("fabric.mod.json"));
             zip.write(("{\"id\":\""+id+"\"}").getBytes(StandardCharsets.UTF_8));zip.closeEntry();
             zip.putNextEntry(new java.util.zip.ZipEntry("marker"));zip.write(content.getBytes(StandardCharsets.UTF_8));zip.closeEntry();
+        }
+    }
+    private static void modJarWithBaritone(Path client,Path baritone)throws IOException{
+        try(var zip=new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(client))){
+            zip.putNextEntry(new java.util.zip.ZipEntry("fabric.mod.json"));zip.write("{\"id\":\"utilityclient\"}".getBytes(StandardCharsets.UTF_8));zip.closeEntry();
+            zip.putNextEntry(new java.util.zip.ZipEntry("sideload/baritone.jar"));java.nio.file.Files.copy(baritone,zip);zip.closeEntry();
         }
     }
 

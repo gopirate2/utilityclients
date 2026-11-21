@@ -396,7 +396,14 @@ public final class HudRenderer {
             return "";
         }
     }
-    public record PotionCount(ItemStack icon, int count) {}
+    public record PotionCount(ItemStack icon, int count) {
+        public int level() {
+            var contents = icon.get(net.minecraft.core.component.DataComponents.POTION_CONTENTS);
+            int level = 1;
+            if (contents != null) for (var effect : contents.getAllEffects()) level = Math.max(level, effect.getAmplifier() + 1);
+            return level;
+        }
+    }
     public static List<PotionCount> potionCounts(Minecraft mc, Hud hud) {
         List<PotionCount> rows = new ArrayList<>(); Set<String> filter = parseCsv(hud.getPotionFilter());
         var inventory = mc.player.getInventory();
@@ -425,6 +432,9 @@ public final class HudRenderer {
             if(rows.isEmpty()) g.text(mc.font,"potions: 0",0,4,color,true);
             for(int i=0;i<rows.size();i++) {
                 var row=rows.get(i); g.item(row.icon(),0,i*20);
+                String level = Integer.toString(row.level());
+                g.fill(15-mc.font.width(level),i*20+7,17,i*20+17,0xB0000000);
+                g.text(mc.font,level,16-mc.font.width(level),i*20+8,0xFFFFFFFF,true);
                 g.text(mc.font,Integer.toString(row.count()),20,i*20+4,color,true);
             }
         } finally { g.pose().popMatrix(); }

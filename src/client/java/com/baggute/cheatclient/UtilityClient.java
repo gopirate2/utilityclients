@@ -120,7 +120,7 @@ public class UtilityClient implements ClientModInitializer {
         eventBus = new EventBus();
         moduleManager = new ModuleManager();
         moduleManager.init();
-        com.baggute.cheatclient.module.automation.Baritone.installChatFilter();
+        com.baggute.cheatclient.util.BaritoneSideload.install();
         // SeedCrackerX must load its own config before the module config is applied:
         // enabling the SeedCrackerX module calls Config.save(), which would otherwise
         // overwrite seedcracker.json with defaults that were never loaded.
@@ -190,7 +190,6 @@ public class UtilityClient implements ClientModInitializer {
         // Registering a Fabric event here cannot install its startup mixin into
         // an already-running game, and would double-tick a game that has it.
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
-            com.baggute.cheatclient.module.automation.Baritone.shutdownWorkers();
             if (configManager != null) configManager.save();
             com.baggute.cheatclient.testing.TestBridge.stop();
             // The overlay is its own Win32 window; it outlives the game unless it is

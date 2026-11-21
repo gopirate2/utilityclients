@@ -251,9 +251,7 @@ public class TerminalScreen extends Screen {
 
     /** Same lines as {@code .version} in chat; the terminal is the other front-end. */
     private void version() {
-        for (String line : com.baggute.cheatclient.util.VersionInfo.lines()) {
-            say(line);
-        }
+        say(com.baggute.cheatclient.util.VersionInfo.client());
     }
 
     private void listModules(String category) {

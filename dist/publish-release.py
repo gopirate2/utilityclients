@@ -70,9 +70,14 @@ def publish(repository, files, metadata, tag, caller=api):
             return {'status': 'already published', 'url': release['html_url']}
         raise ValueError('Existing published release is incomplete; it was preserved')
     if release is None:
+        notes = 'Automatically built client and installer. The setup checks for future verified update packages and preserves saved settings.'
+        if re.fullmatch(r'\d+\.\d+\.\d+', metadata['version']):
+            changelog = Path(__file__).resolve().parents[1] / ('RELEASE-' + metadata['version'] + '.md')
+            if changelog.is_file():
+                notes = changelog.read_text(encoding='utf-8')
         release = caller('POST', base, {'tag_name': tag, 'name': 'UtilityClient ' + metadata['version'] + ' — ' + metadata['build'],
             'draft': True, 'prerelease': False,
-            'body': 'Automatically built client and installer. The setup checks for future verified update packages and preserves saved settings.'})
+            'body': notes})
     existing = {asset['name']: asset for asset in release.get('assets', [])}
     upload = release['upload_url'].split('{', 1)[0]
     for name, data in files.items():

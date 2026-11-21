@@ -61,6 +61,8 @@ public final class ApexImpl {
         final boolean[] physical = new boolean[4];
         final long[] pressOrder = new long[4];
         long sequence;
+        float alienYaw, alienPitch;
+        boolean alienRestore;
     }
     private static Owned owned() { return OWNED.computeIfAbsent(activeEntry, k -> new Owned()); }
 
@@ -73,6 +75,7 @@ public final class ApexImpl {
         Minecraft mc = Minecraft.getInstance();
         Owned state = OWNED.remove(name);
         if (state != null && mc != null && mc.player != null && mc.player == state.owner && mc.level == state.level) {
+            if (state.alienRestore) { mc.player.setYRot(state.alienYaw); mc.player.setXRot(state.alienPitch); }
             cleanupStep(name, "breaking", () -> cancelBreak(mc, state));
             if (state.use != null && mc.gameMode != null && mc.player.isUsingItem()
                     && mc.player.getUseItem() == state.use) cleanupStep(name, "using item", () -> mc.gameMode.releaseUsingItem(mc.player));
@@ -159,6 +162,9 @@ public final class ApexImpl {
         if (mc.gui.screen() != null && !name.equals("ClickGUI")
                 && !CONTAINER_BODIES.contains(name) || mc.isPaused()) {
             Owned state = OWNED.get(name);
+            if (state != null && state.alienRestore) {
+                mc.player.setYRot(state.alienYaw); mc.player.setXRot(state.alienPitch); state.alienRestore = false;
+            }
             if (state != null) cancelBreak(mc, state);
             if (state != null && state.use != null && mc.player.isUsingItem()
                     && mc.player.getUseItem() == state.use) mc.gameMode.releaseUsingItem(mc.player);
@@ -440,14 +446,29 @@ public final class ApexImpl {
     }
 
     private static void autoAlien(Minecraft mc, int tick) {
-        if (!due(tick, 2)) return;
+        Owned state = owned();
+        if (state.alienRestore) {
+            mc.player.setYRot(state.alienYaw); mc.player.setXRot(state.alienPitch);
+            state.alienRestore = false;
+            return;
+        }
+        if (tick < state.nextActionTick || !mc.player.isFallFlying()
+                || !mc.player.getItemBySlot(EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA)) return;
         double vy = mc.player.getDeltaMovement().y;
         if (vy > -number("minFallSpeed", 0.2)) return;
-        if (!hasItem(mc, "wind_charge")) return;
-        if (!select(mc, "wind_charge")) return;
-
-        if (!pitch(mc, (float) number("pitch", 88))) return;
-        use(mc);
+        int slot = ModuleUtils.findHotbarItem(mc, "wind_charge");
+        if (slot < 0) return;
+        float yaw = mc.player.getYRot(), pitch = mc.player.getXRot();
+        int original = mc.player.getInventory().getSelectedSlot();
+        var result = Stealth.useItemSelected(mc, InteractionHand.MAIN_HAND, slot, "wind_charge", yaw, 90);
+        if (result != null && result.consumesAction()) {
+            state.alienYaw = yaw; state.alienPitch = pitch; state.alienRestore = true;
+            mc.player.setXRot(90);
+            if (state.originalSlot < 0) state.originalSlot = original;
+            state.selectedSlot = slot;
+            Stealth.restoreSlot(mc, original);
+            state.nextActionTick = tick + 10;
+        }
     }
 
     private static void elytraDrop(Minecraft mc) {
@@ -686,7 +707,7 @@ public final class ApexImpl {
         BlockPos pos = hit.getBlockPos();
         if (!mc.level.getBlockState(pos).getBlock().toString().contains("rail")) return;
         if (!due(tick, 2)) return;
-        Placement.useOn(mc, "tnt_minecart", pos);
+        Placement.useOnSilent(mc, "tnt_minecart", pos);
     }
 
     private static void pearlCatch(Minecraft mc, int tick) {

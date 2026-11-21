@@ -60,6 +60,7 @@ public final class RegressionChecks {
         var name = asset.getClass().getDeclaredMethod("name");
         name.setAccessible(true);
         require(name.invoke(asset).equals("cheatclient.jar"), "newer injector excluded from client selection");
+        startupInstall();
         RepairChecks.run();
         LaunchOptionsChecks.run();
         IntegrityChecks.run();
@@ -69,6 +70,58 @@ public final class RegressionChecks {
         com.baggute.cheatclient.injector.agent.BridgePatchChecks.run();
         com.baggute.cheatclient.injector.agent.HookLinkageChecks.run();
         System.out.println("PASS: encoding, process timeout/output ceiling, widener merge, artifact identity");
+    }
+
+    private static void startupInstall() throws Exception {
+        String previous=System.getProperty("utilityclient.injectorRoot");
+        Path root=java.nio.file.Files.createTempDirectory("utilityclient-startup-check-");
+        System.setProperty("utilityclient.injectorRoot",root.resolve("data").toString());
+        try {
+            Path mods=java.nio.file.Files.createDirectory(root.resolve("mods"));
+            Path source=root.resolve("client.jar");modJar(source,"utilityclient","first");
+            Path target=StartupModInstaller.install(source,mods);
+            require(java.nio.file.Files.mismatch(source,target)==-1,"startup install verified copy");
+            require(StartupModInstaller.install(source,mods).equals(target),"startup install idempotence");
+            modJar(source,"utilityclient","second");StartupModInstaller.install(source,mods);
+            require(java.nio.file.Files.mismatch(source,target)==-1,"startup replacement verified");
+            try(var backups=java.nio.file.Files.list(root.resolve("data/backups/startup-mods"))){require(backups.count()==1,"previous startup client backed up");}
+            modJar(mods.resolve("duplicate.jar"),"cheatclient","duplicate");
+            try{StartupModInstaller.install(source,mods);throw new AssertionError("duplicate accepted");}catch(IOException expected){}
+            java.nio.file.Files.delete(mods.resolve("duplicate.jar"));java.nio.file.Files.delete(target);
+            modJar(mods.resolve("utilityclient.jar"),"othermod","unrelated");
+            byte[] unrelated=java.nio.file.Files.readAllBytes(mods.resolve("utilityclient.jar"));
+            try{StartupModInstaller.install(source,mods);throw new AssertionError("unrelated overwritten");}catch(IOException expected){}
+            require(java.util.Arrays.equals(unrelated,java.nio.file.Files.readAllBytes(mods.resolve("utilityclient.jar"))),"unrelated mod preserved");
+            Path sideMods=java.nio.file.Files.createDirectory(root.resolve("side-mods"));
+            Path baritone=root.resolve("baritone.jar");modJar(baritone,"baritone","standalone");
+            modJarWithBaritone(source,baritone);
+            StartupModInstaller.install(source,sideMods);
+            Path side=sideMods.resolve("baritone-utilityclient.jar");
+            require(java.nio.file.Files.mismatch(baritone,side)==-1,"Baritone installed as a separate verified Fabric JAR");
+            byte[] originalBaritone=java.nio.file.Files.readAllBytes(side);
+            modJar(baritone,"baritone","new-bundled-version");modJarWithBaritone(source,baritone);
+            StartupModInstaller.install(source,sideMods);
+            require(java.util.Arrays.equals(originalBaritone,java.nio.file.Files.readAllBytes(side)),"existing standalone Baritone preserved without duplicates");
+            java.nio.file.Files.delete(side);modJar(baritone,"othermod","wrong");modJarWithBaritone(source,baritone);
+            try{StartupModInstaller.install(source,sideMods);throw new AssertionError("wrong side-load mod accepted");}catch(IOException expected){}
+            require(!java.nio.file.Files.exists(side),"wrong Baritone side-load cannot leave a destination JAR");
+            System.out.println("PASS: startup Fabric install, verified replacement, backup, duplicate and unrelated-mod guards");
+        }finally{
+            if(previous==null)System.clearProperty("utilityclient.injectorRoot");else System.setProperty("utilityclient.injectorRoot",previous);
+        }
+    }
+    private static void modJar(Path path,String id,String content)throws IOException{
+        try(var zip=new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(path))){
+            zip.putNextEntry(new java.util.zip.ZipEntry("fabric.mod.json"));
+            zip.write(("{\"id\":\""+id+"\"}").getBytes(StandardCharsets.UTF_8));zip.closeEntry();
+            zip.putNextEntry(new java.util.zip.ZipEntry("marker"));zip.write(content.getBytes(StandardCharsets.UTF_8));zip.closeEntry();
+        }
+    }
+    private static void modJarWithBaritone(Path client,Path baritone)throws IOException{
+        try(var zip=new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(client))){
+            zip.putNextEntry(new java.util.zip.ZipEntry("fabric.mod.json"));zip.write("{\"id\":\"utilityclient\"}".getBytes(StandardCharsets.UTF_8));zip.closeEntry();
+            zip.putNextEntry(new java.util.zip.ZipEntry("sideload/baritone.jar"));java.nio.file.Files.copy(baritone,zip);zip.closeEntry();
+        }
     }
 
     private static void require(boolean condition, String message) {

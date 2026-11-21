@@ -136,11 +136,9 @@ public final class KitManager {
     /**
      * Puts a saved kit back into the inventory.
      *
-     * <p>Creative or opped: every entry is generated in place through
-     * {@code handleCreativeModeItemAdd}. Otherwise the matching stacks that are
-     * already in the inventory are moved into the kit's slots, and the shortfall
-     * is reported - a survival client cannot mint items, so pretending otherwise
-     * would be a silent failure.
+     * <p>Creative mode or the owned singleplayer server replaces all 41 slots,
+     * including clearing positions omitted from the saved kit. A remote survival
+     * server must authorize creating items; no local-only inventory is fabricated.
      *
      * @return the number of slots that could not be filled
      */
@@ -210,7 +208,7 @@ public final class KitManager {
         Job(net.minecraft.client.player.LocalPlayer player) { this.player = player; java.util.Arrays.fill(wanted, ItemStack.EMPTY); }
     }
 
-    /** Queues survival moves so stack quantities and fulfilled slots remain owned. */
+    /** Replaces the entire inventory where the client has authoritative access. */
     public static int apply(Minecraft mc, JsonObject kit) {
         if (mc.player == null || mc.gameMode == null || mc.player.containerMenu != mc.player.inventoryMenu
                 || !mc.player.containerMenu.getCarried().isEmpty() || pending != null) return -1;
@@ -223,6 +221,18 @@ public final class KitManager {
             int slot = entry.has("slot") ? entry.get("slot").getAsInt() : -1;
             if (slot >= 0 && slot < INVENTORY_SLOTS) job.wanted[slot] = decodeStack(mc, entry);
         }
+        if (mc.getSingleplayerServer() != null) {
+            var server = mc.getSingleplayerServer();
+            var id = mc.player.getUUID();
+            server.execute(() -> {
+                var player = server.getPlayerList().getPlayer(id);
+                if (player == null) return;
+                for (int slot = 0; slot < INVENTORY_SLOTS; slot++) player.getInventory().setItem(slot, job.wanted[slot].copy());
+                player.inventoryMenu.broadcastChanges();
+                player.containerMenu.broadcastChanges();
+            });
+            return 0;
+        }
         if (canGenerateItems(mc)) {
             for (int slot = 0; slot < INVENTORY_SLOTS; slot++) {
                 ItemStack stack = job.wanted[slot];
@@ -231,28 +241,8 @@ public final class KitManager {
             }
             return 0;
         }
-        ItemStack[] available = new ItemStack[INVENTORY_SLOTS];
-        for (int slot = 0; slot < INVENTORY_SLOTS; slot++) available[slot] = mc.player.getInventory().getItem(slot).copy();
-        for (int slot = 0; slot < INVENTORY_SLOTS; slot++) {
-            if (same(available[slot], job.wanted[slot]) && available[slot].getCount() == job.wanted[slot].getCount()) {
-                job.reserved[slot] = true;
-                available[slot] = ItemStack.EMPTY;
-            }
-        }
-        int missing = 0;
-        for (int slot = 0; slot < INVENTORY_SLOTS; slot++) {
-            if (job.reserved[slot] || job.wanted[slot].isEmpty()) continue;
-            int need = job.wanted[slot].getCount(), total = 0;
-            for (ItemStack stack : available) if (same(stack, job.wanted[slot])) total += stack.getCount();
-            if (total < need) { missing++; job.wanted[slot] = ItemStack.EMPTY; continue; }
-            for (ItemStack stack : available) if (same(stack, job.wanted[slot])) {
-                int take = Math.min(need, stack.getCount());
-                stack.shrink(take); need -= take;
-                if (need == 0) break;
-            }
-        }
-        pending = job;
-        return missing;
+        com.baggute.cheatclient.module.misc.Notifications.push("Kit replacement requires creative mode or your own singleplayer world; inventory kept.", false);
+        return -1;
     }
 
     private static boolean same(ItemStack a, ItemStack b) {

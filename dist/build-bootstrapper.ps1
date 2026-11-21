@@ -2,6 +2,8 @@
 param([switch]$SkipBuild, [switch]$Offline, [string]$Jdk = $env:JAVA_HOME, [string]$LinuxBundle, [string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
 $project = Split-Path -Parent $PSScriptRoot
+$clientVersion = ((Get-Content -LiteralPath (Join-Path $project 'gradle.properties') | Where-Object { $_ -match '^version=' }) -replace '^version=','').Trim()
+if ($clientVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$') { throw 'Invalid client version in gradle.properties.' }
 if (-not $Jdk) { $Jdk = 'C:\Program Files\Java\jdk-25.0.5.1' }
 $jlink = Join-Path $Jdk 'bin\jlink.exe'
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
@@ -21,7 +23,7 @@ try {
             finally { Pop-Location }
         }
     }
-    if (-not $LinuxBundle) { $LinuxBundle = Join-Path $project 'linux\build\dist\UtilityClient-1.0.0.zip' }
+    if (-not $LinuxBundle) { $LinuxBundle = Join-Path $project "linux\build\dist\UtilityClient-$clientVersion.zip" }
     $LinuxBundle = [IO.Path]::GetFullPath($LinuxBundle)
     if (-not (Test-Path -LiteralPath $LinuxBundle)) { throw 'Build the matching Linux bundle, or pass -LinuxBundle to its verified ZIP.' }
     $out = Join-Path $project 'build\bootstrapper'
@@ -32,7 +34,7 @@ try {
         Write-Host '[1/4] Staging client and injector'
         & $compiler /nologo /target:winexe /platform:x64 /optimize+ "/out:$(Join-Path $work 'UtilityClient.exe')" "/win32icon:$(Join-Path $PSScriptRoot 'icons\utilityclient.ico')" /reference:System.Windows.Forms.dll (Join-Path $PSScriptRoot 'WindowsLauncher.cs') (Join-Path $PSScriptRoot 'WindowsShortcuts.cs')
         if ($LASTEXITCODE -ne 0) { throw 'Windows launcher compile failed.' }
-        Copy-Item -LiteralPath (Join-Path $project 'build\libs\cheatclient-1.0.0.jar') -Destination (Join-Path $work 'cheatclient.jar')
+        Copy-Item -LiteralPath (Join-Path $project "build\libs\cheatclient-$clientVersion.jar") -Destination (Join-Path $work 'cheatclient.jar')
         Copy-Item -LiteralPath (Join-Path $project 'injector\build\libs\injector.jar') -Destination (Join-Path $work 'injector.jar')
         $baritoneNotices = Join-Path $work 'third-party\baritone'
         New-Item -ItemType Directory -Force -Path $baritoneNotices | Out-Null
@@ -50,7 +52,7 @@ try {
         [UtilityClientRuntimeManifest]::Patch((Join-Path $work 'runtime\bin\java.exe'))
         [UtilityClientRuntimeManifest]::Patch((Join-Path $work 'runtime\bin\javaw.exe'))
         $buildId = (Get-FileHash -LiteralPath (Join-Path $work 'cheatclient.jar') -Algorithm SHA256).Hash.Substring(0,16).ToLowerInvariant()
-        & $Python (Join-Path $PSScriptRoot 'package-release.py') manifest $work --build $buildId
+        & $Python (Join-Path $PSScriptRoot 'package-release.py') manifest $work --build $buildId --version $clientVersion
         if ($LASTEXITCODE -ne 0) { throw 'Package manifest creation failed.' }
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $payload = Join-Path $out 'Payload.zip'
@@ -63,7 +65,7 @@ try {
         Copy-Item -LiteralPath $LinuxBundle -Destination $linuxPayload -Force
         $linuxHash = Join-Path $out 'LinuxBundle.sha256'
         (Get-FileHash -LiteralPath $linuxPayload -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content -LiteralPath $linuxHash -Encoding ASCII
-        & $Python (Join-Path $PSScriptRoot 'package-release.py') update --payload $payload --linux $linuxPayload --output $out --build $buildId
+        & $Python (Join-Path $PSScriptRoot 'package-release.py') update --payload $payload --linux $linuxPayload --output $out --build $buildId --version $clientVersion
         if ($LASTEXITCODE -ne 0) { throw 'Update package creation or Linux integrity check failed.' }
         Write-Host '[3/4] Compiling Windows bootstrapper'
         $exe = Join-Path $work 'UtilityClient-Setup.exe'

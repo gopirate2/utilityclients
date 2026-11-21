@@ -312,7 +312,7 @@ public class ClickGuiScreen extends Screen {
         if (isFiltering()) {
             String q = searchQuery.trim().toLowerCase();
             List<Module> out = new ArrayList<>();
-            for (Module m : UtilityClient.moduleManager.getModules()) {
+            for (Module m : UtilityClient.moduleManager.getVisibleModules()) {
                 if (m.getName().toLowerCase().contains(q)) out.add(m);
             }
             out.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
@@ -328,14 +328,14 @@ public class ClickGuiScreen extends Screen {
 
     /** Every module on the client, alphabetically - the unfiltered list. */
     private List<Module> everyModule() {
-        List<Module> out = new ArrayList<>(UtilityClient.moduleManager.getModules());
+        List<Module> out = new ArrayList<>(UtilityClient.moduleManager.getVisibleModules());
         out.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
         return out;
     }
 
     private List<Module> enabledModules() {
         List<Module> out = new ArrayList<>();
-        for (Module m : UtilityClient.moduleManager.getModules()) {
+        for (Module m : UtilityClient.moduleManager.getVisibleModules()) {
             if (m.isEnabled()) out.add(m);
         }
         out.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
@@ -446,7 +446,7 @@ public class ClickGuiScreen extends Screen {
         if (listIds != null && listSettingName != null && listSettingName.equals(listCacheTag)) return listIds;
         List<String> out = new ArrayList<>();
         if ("hiddenModules".equals(listSettingName)) {
-            for (Module m : UtilityClient.moduleManager.getModules()) out.add(m.getName());
+            for (Module m : UtilityClient.moduleManager.getVisibleModules()) out.add(m.getName());
         } else if ("potionFilter".equals(listSettingName)) {
             for (net.minecraft.world.item.alchemy.Potion potion : BuiltInRegistries.POTION) {
                 Identifier id = BuiltInRegistries.POTION.getKey(potion);

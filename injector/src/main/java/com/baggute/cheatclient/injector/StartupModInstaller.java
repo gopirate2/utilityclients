@@ -19,6 +19,7 @@ public final class StartupModInstaller {
         }
         if(matches>1)throw new IOException("This mods folder contains multiple UtilityClient copies; remove duplicates first");
         if(Files.exists(target)&&!isClient(target))throw new IOException("The destination filename belongs to another mod");
+        installBaritone(client,mods);
         if(Files.exists(target)&&Files.mismatch(client,target)==-1)return target;
         Path staged=Files.createTempFile(mods,".utilityclient-",".tmp");
         try{
@@ -43,6 +44,38 @@ public final class StartupModInstaller {
                 return id.equals("cheatclient")||id.equals("utilityclient");
             }
         }catch(Exception ignored){return false;}
+    }
+    private static void installBaritone(Path client,Path mods)throws IOException{
+        // Preserve an existing standalone Baritone installation.
+        try(var files=Files.list(mods)){
+            for(Path existing:files.filter(p->p.toString().endsWith(".jar")).toList()){
+                if(Files.isSymbolicLink(existing))continue;
+                try(var zip=new ZipFile(existing.toFile())){
+                    var metadata=zip.getEntry("fabric.mod.json");if(metadata==null)continue;
+                    try(var input=zip.getInputStream(metadata)){
+                        var json=JsonParser.parseString(new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+                        if(json.has("id")&&json.get("id").getAsString().equals("baritone"))return;
+                    }
+                }catch(Exception ignored){}
+            }
+        }
+        try(var zip=new ZipFile(client.toFile())){
+            var entry=zip.getEntry("sideload/baritone.jar");if(entry==null)return;
+            Path target=mods.resolve("baritone-utilityclient.jar");
+            if(Files.exists(target))throw new IOException("Baritone destination belongs to another file");
+            Path staged=Files.createTempFile(mods,".baritone-",".tmp");
+            try{
+                try(var input=zip.getInputStream(entry)){Files.copy(input,staged,StandardCopyOption.REPLACE_EXISTING);}
+                try(var baritone=new ZipFile(staged.toFile())){
+                    var metadata=baritone.getEntry("fabric.mod.json");if(metadata==null)throw new IOException("Invalid Baritone side-load package");
+                    try(var input=baritone.getInputStream(metadata)){
+                        if(!JsonParser.parseString(new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject().get("id").getAsString().equals("baritone"))throw new IOException("Wrong side-load mod");
+                    }
+                }
+                try{Files.move(staged,target,StandardCopyOption.ATOMIC_MOVE);}
+                catch(AtomicMoveNotSupportedException ignored){Files.move(staged,target);}
+            }finally{Files.deleteIfExists(staged);}
+        }
     }
     private static String hash(Path path)throws IOException{
         try{

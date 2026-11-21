@@ -28,7 +28,7 @@ public final class LungeSwap extends Module {
     private net.minecraft.client.player.LocalPlayer owner;
 
     public LungeSwap() {
-        super("LungeSwap", "Equips a Lunge spear, waits for attack charge, stabs, and returns.", Category.COMBAT);
+        super("LungeSwap", "Charges with fast-hand attributes, swaps to a Lunge spear, stabs, and returns.", Category.COMBAT);
         addSetting(activate); addSetting(swapBackDelay); addSetting(minLunge); addSetting(auto); addSetting(requireTarget);
         addSetting(missChance); addSetting(sendChatFeedback);
     }
@@ -81,7 +81,7 @@ public final class LungeSwap extends Module {
                 || !isFast(mc.player.getInventory().getItem(fastSlot))) { restore(mc); return; }
         int selected = mc.player.getInventory().getSelectedSlot();
         if (selected != expectedSlot) { clear(); return; }
-        if (selected != fastSlot && selected != spearSlot) {
+        if (selected != fastSlot) {
             // Equipment needs one vanilla tick to acquire the fast item's attributes.
             // A busy arbiter is a deferral; keep retrying without overriding manual swaps.
             if (Stealth.swapSlot(mc, fastSlot)) { expectedSlot = fastSlot; readyTick = ticks; }
@@ -89,10 +89,6 @@ public final class LungeSwap extends Module {
         }
         if (readyTick < 0) { readyTick = ticks; return; }
         if (ticks <= readyTick) return;
-        if (selected != spearSlot) {
-            if (Stealth.swapSlot(mc, spearSlot)) { expectedSlot = spearSlot; readyTick = ticks; }
-            return;
-        }
         Entity target = mc.hitResult instanceof EntityHitResult hit ? hit.getEntity() : mc.crosshairPickEntity;
         if (target == mc.player || (target != null && (!target.isAlive() || !Stealth.inEntityReach(mc.player, target)))) target = null;
         if (requireTarget.get() && target == null) return;

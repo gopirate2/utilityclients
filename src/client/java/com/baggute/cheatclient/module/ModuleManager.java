@@ -112,7 +112,6 @@ public class ModuleManager {
         register(new AutoMine());
         register(new AutoPot());
         register(new AutoEat());
-        register(new Baritone());
 
         // ---- MOVEMENT ----
         register(new Flight());
@@ -244,6 +243,8 @@ public class ModuleManager {
         }
         service("backtrack tick", com.baggute.cheatclient.module.combat.BacktrackBuffer::tick);
         service("kit tick", () -> com.baggute.cheatclient.config.KitManager.tick(Minecraft.getInstance()));
+        service("drop tick", com.baggute.cheatclient.util.InventoryCommands::tick);
+        service("potion guide", com.baggute.cheatclient.gui.PotionRecipeScreen::openPending);
         SeedCrackerX cracker = getSeedCrackerX();
         if (cracker != null) service("seed config", cracker::syncFromConfig);
         Module catchFirst = getByName("AutoPearlCatch");
@@ -343,6 +344,7 @@ public class ModuleManager {
     }
 
     public List<Module> getModules() { return modules; }
+    public List<Module> getVisibleModules() { return modules.stream().filter(Module::isListed).toList(); }
 
     /**
      * Modules already bound to this key, primary or secondary. Empty means the bind
@@ -374,7 +376,7 @@ public class ModuleManager {
     }
 
     public List<Module> getByCategory(Category category) {
-        return byCategory.computeIfAbsent(category, k -> new ArrayList<>());
+        return byCategory.computeIfAbsent(category, k -> new ArrayList<>()).stream().filter(Module::isListed).toList();
     }
 
     public Module getByName(String name) {
@@ -390,7 +392,7 @@ public class ModuleManager {
     public List<Module> getBoundModules() {
         List<Module> out = new ArrayList<>();
         for (Module m : modules) {
-            if (!getBoundKeys(m).isEmpty()) out.add(m);
+            if (m.isListed() && !getBoundKeys(m).isEmpty()) out.add(m);
         }
         out.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
         return out;

@@ -332,8 +332,14 @@ public final class Stealth {
                 || com.baggute.cheatclient.module.combat.HitSelect.shouldBlock(mc))) return false;
         PiercingWeapon weapon = mc.player.getInventory().getItem(spearSlot)
                 .get(net.minecraft.core.component.DataComponents.PIERCING_WEAPON);
-        if (weapon == null || mc.player.getInventory().getSelectedSlot() != spearSlot
-                || !canAttack(mc, weapon, target)) return false;
+        if (weapon == null || mc.player.getCooldowns().isOnCooldown(mc.player.getInventory().getItem(spearSlot))) return false;
+        // Sample charge while the fast-hand attributes still apply, then select
+        // and stab in wire order before the next equipment update.
+        if (mc.player.getInventory().getSelectedSlot() != spearSlot) {
+            mc.player.getInventory().setSelectedSlot(spearSlot);
+            sendCarriedItem(mc, spearSlot);
+            markSwap();
+        }
         if (!intentionalMiss) mc.gameMode.piercingAttack(weapon);
         mc.player.swing(InteractionHand.MAIN_HAND);
         markAttack();

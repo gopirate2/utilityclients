@@ -5,6 +5,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Files;
 import java.security.CodeSource;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -47,7 +49,21 @@ public final class VersionInfo {
 
     /** The client's own version, as declared in {@code fabric.mod.json}. */
     public static String client() {
-        return modVersion(MOD_ID);
+        String loaded=modVersion(MOD_ID);
+        if (!UNKNOWN.equals(loaded)) return loaded;
+        // Late injection has no Fabric mod container; read this JAR's own manifest.
+        try {
+            var source=VersionInfo.class.getProtectionDomain().getCodeSource();
+            if(source!=null && Files.isRegularFile(Path.of(source.getLocation().toURI()))) {
+                try(var jar=new java.util.jar.JarFile(Path.of(source.getLocation().toURI()).toFile())) {
+                    var entry=jar.getJarEntry("fabric.mod.json");
+                    if(entry!=null) try(var input=jar.getInputStream(entry)) {
+                        return com.google.gson.JsonParser.parseString(new String(input.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject().get("version").getAsString();
+                    }
+                }
+            }
+        } catch(Exception ignored) { }
+        return loaded;
     }
 
     public static String minecraft() {

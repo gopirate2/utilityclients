@@ -67,24 +67,11 @@ public final class GamemodeDetector extends Module {
 
     private final BoolSetting notify =
             new BoolSetting("sendChatFeedback", "Send Chat Feedback: show gamemode changes in local chat", false);
-    private final BoolSetting trackOthers =
-            new BoolSetting("trackOthers", "Also report other players, not just yourself", true);
-    private final BoolSetting showJoin =
-            new BoolSetting("showJoin", "Report a player's mode when they first appear", false);
-    private final BoolSetting disableOnChange =
-            new BoolSetting("disableOnChange", "Turn combat, movement and automation off on your own change", true);
-    private final BoolSetting selfOnlySurvival =
-            new BoolSetting("selfOnlySurvival", "Only react to your own mode when leaving survival", false);
-
     public GamemodeDetector() {
         super("GamemodeDetector",
-                "Announces gamemode changes for you and the tab list, read from player-info updates.",
+                "Announces other players gamemode changes from player-info updates.",
                 Category.MISC);
         addSetting(notify);
-        addSetting(trackOthers);
-        addSetting(showJoin);
-        addSetting(disableOnChange);
-        addSetting(selfOnlySurvival);
     }
 
     // ---- mixin entry point ----
@@ -143,11 +130,6 @@ public final class GamemodeDetector extends Module {
 
         Set<UUID> present = new HashSet<>();
         UUID self = mc.player == null ? null : mc.player.getUUID();
-        if(self!=null&&mc.gameMode!=null&&mc.gameMode.getPlayerMode()!=null){
-            present.add(self);GameType current=mc.gameMode.getPlayerMode();GameType previous=known.put(self,current);
-            if(previous!=null&&previous!=current){announce(mc.player.getName().getString(),current);onSelfChange(previous,current);}
-        }
-
         Collection<PlayerInfo> listed = connection.getOnlinePlayers();
         if (listed == null) listed=java.util.List.of();
 
@@ -168,25 +150,14 @@ public final class GamemodeDetector extends Module {
 
             boolean isSelf = id.equals(self);
             if(isSelf)continue;
-            if (isSelf && mc.gameMode != null && mc.gameMode.getPlayerMode() != null) {
-                // The local client's own mode updates before the tab entry does; the
-                // gameMode field is the authority for the player we control.
-                current = mc.gameMode.getPlayerMode();
-            }
-
             GameType previous = known.put(id, current);
             if (previous == null) {
-                if (showJoin.get() && !isSelf) {
-                    announce(displayName(info, id), current);
-                }
                 continue;
             }
             if (previous == current) continue;
 
-            if (!isSelf && !trackOthers.get()) continue;
 
             announce(displayName(info, id), current);
-            if (isSelf) onSelfChange(previous, current);
 
             UtilityClient.LOGGER.info("[Detector] {} {} -> {} ({})",
                     displayName(info, id), previous.getSerializedName(),
@@ -207,16 +178,6 @@ public final class GamemodeDetector extends Module {
         var detector=instance();String message=currentAlert();
         if(detector==null||!detector.isEnabled()||message==null||mc.font==null)return;
         int width=mc.font.width(message);g.fill(4,4,width+12,21,0xD0202028);g.text(mc.font,message,8,8,0xFFFFFF55,true);
-    }
-
-    /** Your own change is the one that can make the client start throwing packets. */
-    private void onSelfChange(GameType previous, GameType current) {
-        if (!disableOnChange.get()) return;
-        if (selfOnlySurvival.get() && previous != GameType.SURVIVAL) return;
-        if (UtilityClient.moduleManager == null) return;
-
-        UtilityClient.moduleManager.disableCategories(
-                Category.COMBAT, Category.MOVEMENT, Category.AUTOMATION);
     }
 
     private String displayName(PlayerInfo info, UUID id) {
