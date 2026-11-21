@@ -20,7 +20,7 @@ python utilityclient/dist/publish-release.py --directory utilityclient/build/boo
 
 Add `--publish` to submit the prepared artifacts. The repair build pipeline also submits after its final packaging step when `UTILITYCLIENT_AUTO_RELEASE=1` is set in the environment. Credentials are read only by the publisher and are never embedded in the installer or client.
 
-The workflow and API publisher are saved locally. This checkout currently has no Git remote configured, and no GitHub publishing credential has been supplied here, so no release or remote workflow deployment has been performed.
+The project is connected to `https://github.com/gopirate2/utilityclients`. The release workflow runs from `main` on GitHub; build progress is available on the repository's Actions page, and completed packages appear on its Releases page.
 
 ## Optional direct manifest hosting
 
