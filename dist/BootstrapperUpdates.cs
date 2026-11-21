@@ -12,9 +12,11 @@ internal static partial class Bootstrapper {
     private const long MaxUpdateBytes = 512L * 1024 * 1024;
     internal sealed class UpdateRelease {
         internal string Label, Url, Digest, ChecksumUrl, Published;
+        internal bool Installed;
         internal bool Available { get { return !String.IsNullOrEmpty(Url); } }
         internal string Description() {
-            return Available ? Label + " (" + Published + ")\n" + Url + "\nVerified before installation; settings are preserved."
+            return Installed ? "You're up to date.\nInstalled: " + InstalledVersionLabel() + "\n" + Label
+                : Available ? "Update available: " + Label + " (" + Published + ")\nInstalled: " + InstalledVersionLabel() + "\n" + Url + "\nVerified before installation; settings are preserved."
                 : "No compatible stable update package is published in " + ReleaseRepository + ". The offline package remains available.";
         }
     }
@@ -30,6 +32,7 @@ internal static partial class Bootstrapper {
         try {
             UpdateRelease release = DiscoverUpdate();
             if (!release.Available) return "No verified stable release is published; using " + PackageLabel + ".";
+            if (release.Installed || IsReleaseInstalled(release)) return "You're up to date: " + InstalledVersionLabel();
             if (SelectedUpdate != null && IsDigest(release.Digest) && SelectedUpdate.Digest == release.Digest.ToLowerInvariant())
                 return "Latest verified release is already cached: " + PackageLabel;
             FetchUpdate(release, null);
@@ -39,6 +42,23 @@ internal static partial class Bootstrapper {
         }
     }
     internal static string PackageLabel { get { return SelectedUpdate == null ? "Embedded offline package" : SelectedUpdate.Label; } }
+    private static string InstalledVersionLabel() {
+        if (!File.Exists(Path.Combine(Root, "installation.json"))) return "Not installed";
+        Dictionary<string, object> record = ReadInstallationRecord();
+        return TextField(record, "version") + " / " + TextField(record, "build");
+    }
+    internal static bool IsReleaseInstalled(UpdateRelease release) {
+        if (release == null || !release.Available || !IsDigest(release.Digest)
+                || !File.Exists(Path.Combine(Root, "installation.json"))) return false;
+        Dictionary<string, object> record = ReadInstallationRecord();
+        object installed;
+        if (record.TryGetValue("updateSha256", out installed) && IsDigest(installed as string)
+                && String.Equals((string)installed, release.Digest, StringComparison.OrdinalIgnoreCase)) return true;
+        // Older installation records lack the outer update digest. Compare the
+        // cached verified payload with the active installation, never cache alone.
+        return SelectedUpdate != null && String.Equals(SelectedUpdate.Digest, release.Digest, StringComparison.OrdinalIgnoreCase)
+            && String.Equals(TextField(record, "payloadSha256"), SelectedUpdate.PayloadDigest, StringComparison.OrdinalIgnoreCase);
+    }
     internal static bool IsDigest(string value) {
         if (value == null || value.Length != 64) return false;
         foreach (char c in value) if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) return false;
@@ -171,8 +191,14 @@ internal static partial class Bootstrapper {
     internal static UpdateRelease FindUpdate() {
         CurrentStage = "Check published updates";
         string feed = UpdateFeedUrl();
-        if (!String.IsNullOrEmpty(feed)) return PickManifest(Encoding.UTF8.GetString(Download(feed, 65536, null)));
-        return PickUpdate(Encoding.UTF8.GetString(Download("https://api.github.com/repos/" + ReleaseRepository + "/releases?per_page=100", 4 * 1024 * 1024, null)));
+        UpdateRelease release = !String.IsNullOrEmpty(feed) ? PickManifest(Encoding.UTF8.GetString(Download(feed, 65536, null)))
+            : PickUpdate(Encoding.UTF8.GetString(Download("https://api.github.com/repos/" + ReleaseRepository + "/releases?per_page=100", 4 * 1024 * 1024, null)));
+        if (release.Available) {
+            if (!IsDigest(release.Digest)) release.Digest = ParseChecksum(Encoding.UTF8.GetString(Download(release.ChecksumUrl, 65536, null)), "UtilityClient-Update.zip");
+            if (SelectedUpdate == null) RestoreSelectedUpdate();
+            release.Installed = IsReleaseInstalled(release);
+        }
+        return release;
     }
     internal static string UpdateFeedUrl() {
         string configured = Path.Combine(AppRoot, "bootstrapper", "update-feed.url");

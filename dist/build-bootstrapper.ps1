@@ -66,13 +66,16 @@ try {
         & $Python (Join-Path $PSScriptRoot 'package-release.py') update --payload $payload --linux $linuxPayload --output $out --build $buildId
         if ($LASTEXITCODE -ne 0) { throw 'Update package creation or Linux integrity check failed.' }
         Write-Host '[3/4] Compiling Windows bootstrapper'
-        $exe = Join-Path $out 'UtilityClient-Setup.exe'
+        $exe = Join-Path $work 'UtilityClient-Setup.exe'
         & $compiler /nologo /target:winexe /platform:x64 /optimize+ "/out:$exe" "/win32icon:$(Join-Path $PSScriptRoot 'icons\bootstrapper.ico')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Web.Extensions.dll "/resource:$payload,Payload.zip" "/resource:$hashFile,Payload.sha256" "/resource:$linuxPayload,LinuxBundle.zip" "/resource:$linuxHash,LinuxBundle.sha256" "/resource:$(Join-Path $PSScriptRoot 'icons\bootstrapper.ico'),Bootstrapper.ico" "/resource:$(Join-Path $PSScriptRoot 'icons\bootstrapper.png'),Bootstrapper.png" (Join-Path $PSScriptRoot 'Bootstrapper.cs') (Join-Path $PSScriptRoot 'BootstrapperMaintenance.cs') (Join-Path $PSScriptRoot 'BootstrapperUpdates.cs') (Join-Path $PSScriptRoot 'BootstrapperManagementUi.cs') (Join-Path $PSScriptRoot 'WindowsShortcuts.cs') (Join-Path $PSScriptRoot 'LaunchOptions.cs') (Join-Path $PSScriptRoot 'BootstrapperLaunchUi.cs') (Join-Path $PSScriptRoot 'AppBrand.cs') (Join-Path $PSScriptRoot 'BootstrapperUi.cs')
         if ($LASTEXITCODE -ne 0) { throw 'Bootstrapper compile failed.' }
         $updated = Join-Path $out 'UtilityClient-Setup-Updated.exe'
         Copy-Item -LiteralPath $exe -Destination $updated -Force
+        $standard = Join-Path $out 'UtilityClient-Setup.exe'
+        try { Copy-Item -LiteralPath $exe -Destination $standard -Force }
+        catch [System.IO.IOException] { Write-Warning "The standard setup is open; the updated setup was built at $updated." }
         ((Get-FileHash -LiteralPath $updated -Algorithm SHA256).Hash.ToLowerInvariant() + '  UtilityClient-Setup-Updated.exe') | Set-Content -LiteralPath ($updated + '.sha256') -Encoding ASCII
-        Write-Host "[4/4] Ready: $exe"
+        Write-Host "[4/4] Ready: $updated"
     } finally {
         $resolved = [IO.Path]::GetFullPath($work)
         $boundary = [IO.Path]::GetFullPath($out).TrimEnd('\') + '\'

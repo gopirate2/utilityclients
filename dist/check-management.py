@@ -167,6 +167,44 @@ run(['--quiet'])
 assert 'Cached verified update' in (ROOT / 'installation.json').read_text()
 passed('same bootstrapper installs a checked update and retains it for offline repair')
 
+version_script = WORK / 'version-checks.ps1'
+version_script.write_text(r'''param([string]$Setup,[string]$Root,[string]$App,[string]$Digest)
+$assembly=[Reflection.Assembly]::LoadFile($Setup)
+$type=$assembly.GetType('Bootstrapper')
+$flags=[Reflection.BindingFlags]'Static,NonPublic'
+$instance=[Reflection.BindingFlags]'Instance,NonPublic'
+$type.GetField('Root',$flags).SetValue($null,$Root)
+$type.GetField('AppRoot',$flags).SetValue($null,$App)
+$release=[Activator]::CreateInstance($assembly.GetType('Bootstrapper+UpdateRelease'),$true)
+$release.GetType().GetField('Url',$instance).SetValue($release,'https://github.com/test/update.zip')
+$release.GetType().GetField('Digest',$instance).SetValue($release,$Digest.ToUpperInvariant())
+$check=$type.GetMethod('IsReleaseInstalled',$flags)
+1..3 | ForEach-Object { if (-not $check.Invoke($null,@($release))) { throw 'Repeated check failed' } }
+$recordPath=Join-Path $Root 'installation.json'
+$original=[IO.File]::ReadAllText($recordPath)
+try {
+    $record=$original | ConvertFrom-Json
+    $record.PSObject.Properties.Remove('updateSha256')
+    [IO.File]::WriteAllText($recordPath,($record | ConvertTo-Json -Depth 10))
+    $type.GetMethod('RestoreSelectedUpdate',$flags).Invoke($null,@())
+    if (-not $check.Invoke($null,@($release))) { throw 'Legacy record detection failed' }
+    $record.payloadSha256='0'*64
+    [IO.File]::WriteAllText($recordPath,($record | ConvertTo-Json -Depth 10))
+    if ($check.Invoke($null,@($release))) { throw 'Cached package treated as installed' }
+} finally { [IO.File]::WriteAllText($recordPath,$original); $type.GetMethod('CleanupUpdate',$flags).Invoke($null,@()) }
+$release.GetType().GetField('Digest',$instance).SetValue($release,'1'*64)
+if ($check.Invoke($null,@($release))) { throw 'Different release treated as installed' }
+$release.GetType().GetField('Digest',$instance).SetValue($release,$Digest)
+$missing=Join-Path $Root 'installation.json.test-backup'
+[IO.File]::Move($recordPath,$missing)
+try { if ($check.Invoke($null,@($release))) { throw 'Missing installation treated as installed' } }
+finally { [IO.File]::Move($missing,$recordPath) }
+Write-Output 'PASS: repeated checks, case-insensitive identity, legacy records, cached-only, changed release and absent installation'
+''', encoding='utf-8-sig')
+result = subprocess.run(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(version_script), str(EXE), str(ROOT), str(APP), update_hash], capture_output=True, text=True, timeout=30)
+assert result.returncode == 0, result.stdout + result.stderr
+passed('installed version detection survives repeated checks and legacy records')
+
 run(['--quiet', '--update-package', UPDATE, '--package-sha256', '0' * 64], valid=False)
 assert all((ROOT / name).read_bytes() == data for name, data in before.items())
 bad_update = WORK / 'bad-update.zip'

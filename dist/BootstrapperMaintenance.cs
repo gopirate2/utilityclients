@@ -86,6 +86,7 @@ internal static partial class Bootstrapper {
         record["schema"] = 1; record["root"] = Full(Root); record["runtimeVersion"] = Full(version);
         record["payloadSha256"] = payloadHash; record["version"] = package["version"];
         record["build"] = package["build"]; record["release"] = SelectedUpdate == null ? "Embedded offline package" : SelectedUpdate.Label;
+        if (SelectedUpdate != null) record["updateSha256"] = SelectedUpdate.Digest;
         record["files"] = package["files"]; record["installedUtc"] = DateTime.UtcNow.ToString("o");
         Dictionary<string, object> managed = new Dictionary<string, object>();
         foreach (string name in new string[] { "cheatclient.jar", "injector.jar", "UtilityClient.exe", "run.cmd", "java.path" }) managed[name] = FileHash(Path.Combine(installedSource, name));

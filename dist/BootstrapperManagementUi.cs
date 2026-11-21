@@ -98,9 +98,12 @@ internal sealed partial class SetupForm {
             Bootstrapper.UpdateRelease release = (Bootstrapper.UpdateRelease)value;
             AddLog("UPDATE", release.Description().Replace("\n", " "), release.Available ? Cyan : Muted);
             if (!release.Available) { heading.Text = "NO COMPATIBLE UPDATE PUBLISHED"; MessageBox.Show(release.Description(), "UtilityClient updates", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+            if (release.Installed) { heading.Text = "YOU'RE UP TO DATE"; MessageBox.Show(release.Description(), "UtilityClient updates", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
             if (MessageBox.Show(release.Description() + "\n\nDownload, verify and install this release?", "UtilityClient update", MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;
             MaintenanceWork("DOWNLOADING AND VERIFYING UPDATE", delegate {
-                Bootstrapper.DownloadUpdate(release, null); return Bootstrapper.PackageLabel;
+                if (Bootstrapper.SelectedUpdate == null || !String.Equals(Bootstrapper.SelectedUpdate.Digest, release.Digest, StringComparison.OrdinalIgnoreCase))
+                    Bootstrapper.DownloadUpdate(release, null);
+                return Bootstrapper.PackageLabel;
             }, delegate(object selected) {
                 LoadInventory(); AddLog("VERIFIED", Convert.ToString(selected), Cyan); BeginInstall();
             });
