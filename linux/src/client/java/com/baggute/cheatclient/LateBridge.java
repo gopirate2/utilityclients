@@ -143,6 +143,7 @@ public final class LateBridge {
         if (UtilityClient.moduleManager == null) return false;
 
         try {
+            if (action != GLFW.GLFW_RELEASE) com.baggute.cheatclient.util.CommandAutocomplete.tick(Minecraft.getInstance());
             int key = keyEvent.key();
             if (PanicHandler.handle(key, action)) return true;
             if (UtilityClient.moduleManager.onGlobalKey(key, action)) return true;

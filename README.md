@@ -22,7 +22,7 @@ GitHub checks use the public `gopirate2/utilityclients` repository. No GitHub lo
 
 If GitHub is unavailable or rate-limits a connection, your local files remain available. **Offline Package** or `--offline` uses the embedded package. **Local Update** accepts a downloaded `UtilityClient-Update.zip` and its checksum sidecar. Earlier updater-enabled setups can retrieve newer packages, but an old EXE cannot gain new UI behavior without being replaced once.
 
-For this repository, pushing source changes to `main` or `master` triggers the release workflow. It builds Windows/Linux, runs client and injector checks, verifies the installer, uploads all assets to a draft, then publishes. A failed build does not publish an incomplete update. See [automatic releases](AUTOMATIC-UPDATES.md) for details.
+For this repository, pushing source changes to `main` or `master` triggers the release workflow. It builds Windows/Linux, runs client and injector checks, verifies the installer, uploads all assets to a draft, then publishes. A failed build does not publish an incomplete update. The GitHub Actions release workflow handles publication automatically after a successful build.
 
 ## Custom modules: the bottom-right Modules button
 
@@ -82,7 +82,7 @@ Redstone extends supported potions; glowstone strengthens supported potions. A p
 
 Edit Background, Panel, Accent, Text, Muted Text and Border using `#RRGGBB` values. Opacity, Corner Radius, Border Width and Hover Strength are adjustable. Click a field and type/paste its value, then press Enter; scroll the left column for more controls. Add a theme name and optional author. **Apply** changes your current appearance and saves it in client settings. **Save** keeps a JSON copy in the local theme library; click saved themes to preview them before applying.
 
-To share, click **Copy Code** and paste the `UCTHEME1:` string into a Discord message. Recipients copy it, open Themes, click **Import**, review the preview, then Apply or Save. Import also accepts raw theme JSON or a copied local JSON file path. **Folder** opens the theme directory, where you can share JSON files as attachments or add downloaded files; reopen the Themes panel to refresh its list. Themes contain only appearance data, not module settings or friends. See [the theme format and sharing guide](THEMES.md).
+To share, click **Copy Code** and paste the `UCTHEME1:` string into a Discord message. Recipients copy it, open Themes, click **Import**, review the preview, then Apply or Save. Import also accepts raw theme JSON or a copied local JSON file path. **Folder** opens the theme directory, where you can share JSON files as attachments or add downloaded files; reopen the Themes panel to refresh its list. Themes contain only appearance data, not module settings or friends. Theme codes contain fixed appearance fields and are validated before applying.
 
 **AutoInstacart** starts after a bow release that fires an arrow; it does not require a full draw. Its default four-tick `shotDelay` lets you look down before it chooses the placement block. The crosshair must reach a suitable support/rail and the required items must be in the hotbar. AutoInstacart and FastCart do not steer your camera.
 
@@ -96,6 +96,6 @@ On Windows, client settings and program files are under `%APPDATA%\depends`. Cus
 
 If a module does not appear, read the Modules panel's Load Report. If Baritone is missing, check the correct Fabric profile's mods folder and restart. If a changed client still behaves like the old build, check `version`, fully close Minecraft, update through setup, and reopen the correct profile. Installation Health and Repair can restore damaged program files while preserving settings. Uninstall preserves settings by default; remove them only through its explicit settings-removal option.
 
-For community release announcements and interactive bot planning, see [Discord: webhook or custom bot](COMMUNITY-DISCORD.md).
+Type `.` in Minecraft chat for local command suggestions. Tab completes and Up/Down selects. Arguments include online players, potion aliases and items present in your inventory. Normal chat and vanilla slash commands retain their existing behavior. Late-injected clients also receive autocomplete.
 
 The project license is [CC0](LICENSE). Bundled Baritone has its own [license and source notices](vendor/README.md).

@@ -70,7 +70,7 @@ public final class ActivationChecks {
         try {
             setup(); catalog(); bindingFailures(); sharedTick(); crossbow(); bucketRepairs(); lunge(); pearlSpeed(false, 0); pearlSpeed(true, 0); pearlSpeed(false, 4);
             manualPearlSpeed(false, true); manualPearlSpeed(true, false); rejectedPearls(); atomicItemUse();
-            timingAndPriority(); quietFeedback(); missControls(); livePearls(); apexSequences(); delegates(); combatRepairs(); requestedRepairs(); themeEditor(); hud(); panic();
+            timingAndPriority(); quietFeedback(); missControls(); livePearls(); apexSequences(); delegates(); combatRepairs(); requestedRepairs(); themeEditor(); autocompleteUi(); hud(); panic();
             System.out.println("PASS: action press/repeat/release, failure isolation, duplicate bindings, shared tick, AutoXbow arming/charging, Lunge III stab/return, fast pearl packet aim, own/foreign pearl tracking, offhand timing, Apex sequence/delegate cleanup and HUD preview");
         } finally {
             field(Minecraft.class, "instance").set(null, oldGame);
@@ -704,6 +704,28 @@ public final class ActivationChecks {
             }
         }
         System.out.println("PASS: theme editor dark/light rendering, small/large layouts, visible sharing controls and draft-only preset/hex edits");
+    }
+
+    private static void autocompleteUi() throws Exception {
+        setup();
+        var screen=new Screen(Component.literal("chat autocomplete test")) {};
+        field(Screen.class,"height").setInt(screen,300);
+        var input=new net.minecraft.client.gui.components.EditBox(game.font,10,280,400,20,Component.literal("chat"));
+        input.setMaxLength(256);input.setValue(".ver");
+        var suggestions=new net.minecraft.client.gui.components.CommandSuggestions(game,screen,input,game.font,false,false,1,10,true,0xCC000000);
+        require(com.baggute.cheatclient.util.CommandAutocomplete.update(suggestions,input),"dot suggestions handled");
+        require(suggestions.isVisible(),"vanilla suggestion popup visible");
+        require(suggestions.keyPressed(new KeyEvent(GLFW.GLFW_KEY_TAB,0,0)),"vanilla Tab consumed");
+        require(input.getValue().equals(".version")||input.getValue().equals(".ver"),"Tab completes a valid command");
+        input.setValue(".drop 10 st");
+        player.inventory.setItem(0,new ItemStack(Items.STONE));
+        com.baggute.cheatclient.util.CommandAutocomplete.update(suggestions,input);
+        var pending=(java.util.concurrent.CompletableFuture<?>)field(net.minecraft.client.gui.components.CommandSuggestions.class,"pendingSuggestions").get(suggestions);
+        var values=(com.mojang.brigadier.suggestion.Suggestions)pending.join();
+        require(values.getList().stream().anyMatch(value->value.getText().equals("stone")),"live inventory items reach popup");
+        input.setValue("/give");
+        require(!com.baggute.cheatclient.util.CommandAutocomplete.update(suggestions,input),"slash command follows vanilla path");
+        System.out.println("PASS: vanilla dot popup, Tab handling and live inventory suggestions");
     }
 
     private static void hud() throws Exception {

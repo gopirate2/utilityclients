@@ -51,3 +51,18 @@ dist/update-server.local.json
 !gradle/wrapper/gradle-wrapper.jar
 __pycache__/
 *.pyc
+
+
+# Private community tooling and local-only supporting guides
+/community-bot/
+/.github/workflows/community-bot.yml
+/AUTOMATIC-UPDATES.md
+/COMMUNITY-DISCORD.md
+/CUSTOM-MODULES-AND-THEMES.md
+/MANAGEMENT-FEATURES.md
+/RELEASE-1.0.1.md
+/RELEASE-1.0.2.md
+/RELEASE-1.0.3.md
+/RELEASE-1.0.4.md
+/REPAIR-BUILD.md
+/THEMES.md

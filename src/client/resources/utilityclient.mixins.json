@@ -23,7 +23,8 @@
     "client.GammaMixin",
     "client.KnockbackMixin",
     "client.VelocityMixin",
-    "client.ExplosionVelocityMixin"
+    "client.ExplosionVelocityMixin",
+    "client.CommandSuggestionsMixin"
   ],
   "injectors": {
     "defaultRequire": 1

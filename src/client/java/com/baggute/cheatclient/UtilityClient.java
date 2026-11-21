@@ -228,6 +228,7 @@ public class UtilityClient implements ClientModInitializer {
         service("capture upkeep", () -> com.baggute.cheatclient.stealth.StealthInitializer.onTick(client));
         service("HUD upkeep", () -> com.baggute.cheatclient.stealth.ScreenBypass.tick(client));
         service("player snapshots", () -> PlayerSnapshots.tick(client));
+        service("chat autocomplete", () -> com.baggute.cheatclient.util.CommandAutocomplete.tick(client));
         service("menu keys", () -> {
             if (LATE_INIT) instance.pollKeysDirectly(client);
             else {
